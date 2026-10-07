@@ -23,13 +23,17 @@ import { useRouter } from 'next/navigation'
 import { useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { z } from 'zod'
+import { loginAPI } from '@/services/auth.service'
+import { toast } from 'react-toastify'
+import axios from 'axios'
 
 const loginSchema = z.object({
-  username: z
+  email: z
     .string()
     .trim()
-    .min(1, 'Vui lòng nhập tên đăng nhập')
-    .min(3, 'Tên đăng nhập phải có ít nhất 3 ký tự'),
+    .min(1, 'Vui lòng nhập email')
+    .email('Email không đúng định dạng')
+    .max(100, 'Email không được vượt quá 100 ký tự'),
 
   password: z
     .string()
@@ -50,32 +54,42 @@ const Login = () => {
   const {
     register,
     handleSubmit,
+    setError,
+    clearErrors,
     formState: { errors, isSubmitting }
   } = useForm<LoginFormData>({
-    resolver: zodResolver(loginSchema),
-    mode: 'onTouched',
-    defaultValues: {
-      username: '',
-      password: '',
-      rememberMe: false
-    }
+    resolver: zodResolver(loginSchema)
   })
 
-  const onSubmit = async (data: LoginFormData) => {
-    setLoginError('')
+  const handleLogin = async (data: LoginFormData) => {
+    try {
+      setLoginError('')
+      await loginAPI(data)
 
-    // TODO: Thay bằng API login khi làm backend
-    console.log('Login:', data)
+      router.push('/dashboard')
+    } catch (error) {
+      if (axios.isAxiosError(error)) {
+        const status = error.response?.status
 
-    await new Promise((resolve) => setTimeout(resolve, 500))
+        if (status === 401) {
+          setError('email', {
+            type: 'server',
+            message: 'Email hoặc mật khẩu chưa đúng'
+          })
+          return
+        }
 
-    // Mock login
-    if (data.username === 'admin' && data.password === '123456') {
-      router.push('/vaccination-schedules')
-      return
+        if (status === 403) {
+          setError('email', {
+            type: 'server',
+            message: 'Tài khoản chưa được kích hoạt'
+          })
+          return
+        }
+      }
+
+      toast.error('Đăng nhập không thành công')
     }
-
-    setLoginError('Tên đăng nhập hoặc mật khẩu không chính xác')
   }
 
   return (
@@ -152,41 +166,34 @@ const Login = () => {
         <Box
           component="form"
           noValidate
-          onSubmit={handleSubmit(onSubmit)}
+          method="post"
+          onSubmit={(event) => {
+            event.preventDefault()
+            event.stopPropagation()
+            void handleSubmit(handleLogin)(event)
+          }}
           sx={{
             px: 4,
             pb: 4
           }}
         >
-          {loginError && (
-            <Alert
-              severity="error"
-              sx={{
-                mb: 2,
-                borderRadius: 2
-              }}
-            >
-              {loginError}
-            </Alert>
-          )}
-
           {/* USERNAME */}
           <TextField
-            label="Tên đăng nhập"
-            placeholder="Nhập tên đăng nhập"
+            label="Email"
+            type="email"
             required
             fullWidth
-            autoFocus
-            autoComplete="username"
-            {...register('username', {
+            autoComplete="email"
+            placeholder="VD: admin@gmail.com"
+            {...register('email', {
               onChange: () => {
-                if (loginError) {
-                  setLoginError('')
+                if (errors.email?.type === 'server') {
+                  clearErrors('email')
                 }
               }
             })}
-            error={Boolean(errors.username)}
-            helperText={errors.username?.message}
+            error={Boolean(errors.email)}
+            helperText={errors.email?.message}
             slotProps={{
               input: {
                 startAdornment: (
@@ -194,6 +201,9 @@ const Login = () => {
                     <AccountCircleOutlinedIcon color="action" />
                   </InputAdornment>
                 )
+              },
+              htmlInput: {
+                maxLength: 100
               }
             }}
             sx={{
@@ -211,8 +221,8 @@ const Login = () => {
             autoComplete="current-password"
             {...register('password', {
               onChange: () => {
-                if (loginError) {
-                  setLoginError('')
+                if (errors.email?.type === 'server') {
+                  clearErrors('email')
                 }
               }
             })}
@@ -271,10 +281,7 @@ const Login = () => {
                 textTransform: 'none',
                 whiteSpace: 'nowrap'
               }}
-              onClick={() => {
-                // TODO: Làm màn quên mật khẩu sau
-                console.log('Forgot password')
-              }}
+              onClick={() => {}}
             >
               Quên mật khẩu?
             </Button>

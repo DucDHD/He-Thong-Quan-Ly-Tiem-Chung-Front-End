@@ -3,14 +3,9 @@
 import {
   Box,
   Button,
-  Dialog,
-  DialogActions,
-  DialogContent,
-  DialogTitle,
   Divider,
   IconButton,
   InputAdornment,
-  MenuItem,
   Paper,
   Table,
   TableBody,
@@ -19,272 +14,285 @@ import {
   TableHead,
   TablePagination,
   TableRow,
+  TableSortLabel,
   TextField,
-  Typography
+  Typography,
+  Dialog,
+  DialogActions,
+  DialogContent,
+  DialogTitle
 } from '@mui/material'
+
 import ArrowBackOutlinedIcon from '@mui/icons-material/ArrowBackOutlined'
-import AddOutlinedIcon from '@mui/icons-material/AddOutlined'
-import CloseOutlinedIcon from '@mui/icons-material/CloseOutlined'
 import EventOutlinedIcon from '@mui/icons-material/EventOutlined'
 import PersonOutlineOutlinedIcon from '@mui/icons-material/PersonOutlineOutlined'
 import SearchOutlinedIcon from '@mui/icons-material/SearchOutlined'
 import VaccinesOutlinedIcon from '@mui/icons-material/VaccinesOutlined'
 import AccessTimeOutlinedIcon from '@mui/icons-material/AccessTimeOutlined'
-import { Controller, useForm } from 'react-hook-form'
-import { zodResolver } from '@hookform/resolvers/zod'
-import { DatePicker } from '@mui/x-date-pickers/DatePicker'
-import { useRouter } from 'next/navigation'
-import { useMemo, useState } from 'react'
+import GroupsOutlinedIcon from '@mui/icons-material/GroupsOutlined'
+import CancelOutlinedIcon from '@mui/icons-material/CancelOutlined'
+import LocationOnOutlinedIcon from '@mui/icons-material/LocationOnOutlined'
+
+import { useRouter, useSearchParams } from 'next/navigation'
+import { useEffect, useMemo, useState } from 'react'
 import dayjs from 'dayjs'
-import { z } from 'zod'
+import axios from 'axios'
+import { toast } from 'react-toastify'
+import { useAuth } from '@/contexts/AuthContext'
+import {
+  getVaccinationBookingDetailAPI,
+  VaccinationBookingDetail,
+  cancelVaccinationBookingAPI,
+  completeBooking
+} from '@/services/vaccination-booking.service'
 
 type ScheduleDetailProps = {
   scheduleId: string
 }
 
-type Customer = {
-  id: number
-  fullName: string
-  dateOfBirth: string
-  gender: string
-  phone: string
-  identityNumber: string
-}
+type SortField =
+  'fullName' | 'dateOfBirth' | 'gender' | 'phone' | 'cccd' | 'address'
 
-// MOCK - sau này lấy API theo scheduleId
-const schedule = {
-  id: 1,
-  vaccinationDate: '2026-09-18',
-  vaccinationTime: '08:00',
-  vaccine: 'Influvac Tetra',
-  age: '18 - 60',
-  quantity: 30,
-  registered: 12
-}
-
-const initialCustomers: Customer[] = [
-  {
-    id: 1,
-    fullName: 'Nguyễn Văn An',
-    dateOfBirth: '1998-05-12',
-    gender: 'Nam',
-    phone: '0901234567',
-    identityNumber: '048098001234'
-  },
-  {
-    id: 2,
-    fullName: 'Trần Thị Bình',
-    dateOfBirth: '1995-08-20',
-    gender: 'Nữ',
-    phone: '0912345678',
-    identityNumber: '048195002345'
-  },
-  {
-    id: 3,
-    fullName: 'Lê Văn Cường',
-    dateOfBirth: '2000-03-15',
-    gender: 'Nam',
-    phone: '0923456789',
-    identityNumber: '048200003456'
-  },
-  {
-    id: 4,
-    fullName: 'Phạm Thị Dung',
-    dateOfBirth: '1997-11-25',
-    gender: 'Nữ',
-    phone: '0934567890',
-    identityNumber: '048197004567'
-  },
-  {
-    id: 5,
-    fullName: 'Hoàng Văn Em',
-    dateOfBirth: '1999-07-09',
-    gender: 'Nam',
-    phone: '0945678901',
-    identityNumber: '048199005678'
-  },
-  {
-    id: 6,
-    fullName: 'Nguyễn Thị Hạnh',
-    dateOfBirth: '2001-01-18',
-    gender: 'Nữ',
-    phone: '0956789012',
-    identityNumber: '048201006789'
-  },
-  {
-    id: 7,
-    fullName: 'Võ Văn Khang',
-    dateOfBirth: '1996-09-10',
-    gender: 'Nam',
-    phone: '0967890123',
-    identityNumber: '048196007890'
-  },
-  {
-    id: 8,
-    fullName: 'Đặng Thị Lan',
-    dateOfBirth: '1994-12-03',
-    gender: 'Nữ',
-    phone: '0978901234',
-    identityNumber: '048194008901'
-  },
-  {
-    id: 9,
-    fullName: 'Bùi Văn Minh',
-    dateOfBirth: '2002-06-22',
-    gender: 'Nam',
-    phone: '0989012345',
-    identityNumber: '048202009012'
-  },
-  {
-    id: 10,
-    fullName: 'Nguyễn Thị Ngọc',
-    dateOfBirth: '1998-04-17',
-    gender: 'Nữ',
-    phone: '0901122334',
-    identityNumber: '048198010123'
-  },
-  {
-    id: 11,
-    fullName: 'Trần Văn Phúc',
-    dateOfBirth: '1993-10-11',
-    gender: 'Nam',
-    phone: '0911223344',
-    identityNumber: '048193011234'
-  },
-  {
-    id: 12,
-    fullName: 'Lê Thị Quỳnh',
-    dateOfBirth: '2000-02-14',
-    gender: 'Nữ',
-    phone: '0922334455',
-    identityNumber: '048200012345'
-  }
-]
-
-const customerSchema = z.object({
-  fullName: z
-    .string()
-    .trim()
-    .min(1, 'Vui lòng nhập họ và tên')
-    .min(2, 'Họ và tên phải có ít nhất 2 ký tự')
-    .max(100, 'Họ và tên không được vượt quá 100 ký tự')
-    .regex(
-      /^[\p{L}\s'.-]+$/u,
-      'Họ và tên không được chứa số hoặc ký tự không hợp lệ'
-    ),
-
-  dateOfBirth: z
-    .string()
-    .min(1, 'Vui lòng chọn ngày sinh')
-    .refine(
-      (value) => {
-        const date = dayjs(value)
-
-        return date.isValid() && date.isBefore(dayjs(), 'day')
-      },
-      {
-        message: 'Ngày sinh phải nhỏ hơn ngày hiện tại'
-      }
-    ),
-
-  gender: z.enum(['male', 'female', 'other'], {
-    message: 'Vui lòng chọn giới tính'
-  }),
-
-  phone: z
-    .string()
-    .trim()
-    .min(1, 'Vui lòng nhập số điện thoại')
-    .regex(/^0\d{9}$/, 'Số điện thoại phải gồm 10 số và bắt đầu bằng 0'),
-
-  identityNumber: z
-    .string()
-    .trim()
-    .min(1, 'Vui lòng nhập CCCD')
-    .regex(/^\d{12}$/, 'CCCD phải gồm đúng 12 chữ số'),
-
-  address: z
-    .string()
-    .trim()
-    .min(1, 'Vui lòng nhập địa chỉ')
-    .min(5, 'Địa chỉ phải có ít nhất 5 ký tự')
-    .max(255, 'Địa chỉ không được vượt quá 255 ký tự'),
-
-  note: z.string().trim().max(500, 'Ghi chú không được vượt quá 500 ký tự')
-})
-
-type CustomerFormData = z.infer<typeof customerSchema>
+type SortOrder = 'asc' | 'desc'
 
 const ScheduleDetail = ({ scheduleId }: ScheduleDetailProps) => {
+  const { isAdmin, isDoctor, isNurse } = useAuth()
   const router = useRouter()
+  const searchParams = useSearchParams()
 
-  const [customers, setCustomers] = useState<Customer[]>(initialCustomers)
+  const currentPage = searchParams.get('currentPage') || '1'
 
+  const [customers, setCustomers] = useState<VaccinationBookingDetail[]>([])
   const [search, setSearch] = useState('')
   const [page, setPage] = useState(0)
-  const [openAddCustomer, setOpenAddCustomer] = useState(false)
+  const [loading, setLoading] = useState(true)
 
-  const rowsPerPage = 10
+  const [sortField, setSortField] = useState<SortField>('fullName')
+  const [sortOrder, setSortOrder] = useState<SortOrder>('asc')
 
-  const handleAddPatient = () => {
-    router.push(`/vaccination-schedules/${scheduleId}/patients/create`)
+  // PAGINATION
+  const [rowsPerPage, setRowsPerPage] = useState(5)
+
+  // CANCEL
+  const [cancelCustomer, setCancelCustomer] =
+    useState<VaccinationBookingDetail | null>(null)
+
+  const [cancelLoading, setCancelLoading] = useState(false)
+
+  // COMPLETE
+  const [completeCustomer, setCompleteCustomer] =
+    useState<VaccinationBookingDetail | null>(null)
+
+  const [completeLoading, setCompleteLoading] = useState(false)
+
+  // ====================================================
+  // LOAD DETAIL
+  // ====================================================
+
+  useEffect(() => {
+    const loadDetail = async () => {
+      try {
+        setLoading(true)
+
+        const data = await getVaccinationBookingDetailAPI(Number(scheduleId))
+
+        setCustomers(data)
+      } catch (error) {
+        console.error(error)
+      } finally {
+        setLoading(false)
+      }
+    }
+
+    loadDetail()
+  }, [scheduleId])
+
+  // ====================================================
+  // CANCEL
+  // ====================================================
+
+  const handleOpenCancel = (customer: VaccinationBookingDetail) => {
+    setCancelCustomer(customer)
   }
 
-  const {
-    control,
-    register,
-    handleSubmit,
-    reset,
-    formState: { errors, isSubmitting }
-  } = useForm<CustomerFormData>({
-    resolver: zodResolver(customerSchema),
-    mode: 'onTouched',
-    defaultValues: {
-      fullName: '',
-      dateOfBirth: '',
-      gender: 'male',
-      phone: '',
-      identityNumber: '',
-      address: '',
-      note: ''
+  const handleCloseCancel = () => {
+    if (cancelLoading) return
+
+    setCancelCustomer(null)
+  }
+
+  const handleConfirmCancel = async () => {
+    if (!cancelCustomer) return
+
+    try {
+      setCancelLoading(true)
+
+      await cancelVaccinationBookingAPI(cancelCustomer.booking_id)
+
+      const remainingCustomers = customers.filter(
+        (customer) => customer.booking_id !== cancelCustomer.booking_id
+      )
+
+      if (remainingCustomers.length === 0) {
+        toast.success('Hủy đăng ký tiêm thành công')
+
+        router.push(`/vaccination-schedules?page=${currentPage}`)
+
+        return
+      }
+
+      setCustomers(remainingCustomers)
+      setCancelCustomer(null)
+
+      // Nếu hủy khách hàng cuối cùng của trang hiện tại
+      const totalPages = Math.ceil(remainingCustomers.length / rowsPerPage)
+
+      if (page >= totalPages && page > 0) {
+        setPage(page - 1)
+      }
+
+      toast.success('Hủy đăng ký tiêm thành công')
+    } catch (error) {
+      if (axios.isAxiosError(error)) {
+        const { message } = error.response?.data || {}
+
+        if (message) {
+          toast.error(message)
+          return
+        }
+      }
+
+      toast.error('Hủy đăng ký tiêm thất bại')
+    } finally {
+      setCancelLoading(false)
     }
-  })
+  }
+
+  // ====================================================
+  // COMPLETE
+  // ====================================================
+
+  const handleOpenComplete = (customer: VaccinationBookingDetail) => {
+    setCompleteCustomer(customer)
+  }
+
+  const handleCloseComplete = () => {
+    if (completeLoading) return
+
+    setCompleteCustomer(null)
+  }
+
+  const handleConfirmComplete = async () => {
+    if (!completeCustomer) return
+
+    try {
+      setCompleteLoading(true)
+
+      await completeBooking(completeCustomer.booking_id)
+
+      setCustomers((prev) =>
+        prev.map((customer) =>
+          customer.booking_id === completeCustomer.booking_id
+            ? { ...customer, status: 'COMPLETED' }
+            : customer
+        )
+      )
+
+      toast.success('đã tiêm chủng thành công')
+      setCompleteCustomer(null)
+    } catch (error) {
+      if (axios.isAxiosError(error)) {
+        const { message } = error.response?.data || {}
+
+        if (message) {
+          toast.error(message)
+          return
+        }
+      }
+
+      toast.error('tiêm chủng thất bại')
+    } finally {
+      setCompleteLoading(false)
+    }
+  }
+
+  // ====================================================
+  // SCHEDULE
+  // ====================================================
+
+  const schedule = customers[0]
+
+  // ====================================================
+  // SORT
+  // ====================================================
+
+  const handleSort = (field: SortField) => {
+    if (sortField === field) {
+      setSortOrder((current) => (current === 'asc' ? 'desc' : 'asc'))
+    } else {
+      setSortField(field)
+      setSortOrder('asc')
+    }
+
+    setPage(0)
+  }
+
+  // ====================================================
+  // SEARCH + SORT
+  // ====================================================
 
   const filteredCustomers = useMemo(() => {
     const keyword = search.trim().toLowerCase()
 
-    if (!keyword) {
-      return customers
-    }
+    const filtered = customers.filter((customer) => {
+      if (!keyword) return true
 
-    return customers.filter((customer) => {
       return (
         customer.fullName.toLowerCase().includes(keyword) ||
-        customer.phone.includes(keyword) ||
-        customer.identityNumber.includes(keyword)
+        customer.phone?.toLowerCase().includes(keyword) ||
+        customer.cccd?.toLowerCase().includes(keyword) ||
+        customer.address?.toLowerCase().includes(keyword)
       )
     })
-  }, [customers, search])
+
+    return [...filtered].sort((a, b) => {
+      const aValue = a[sortField] ?? ''
+      const bValue = b[sortField] ?? ''
+
+      if (sortField === 'dateOfBirth') {
+        const aTime = aValue ? dayjs(aValue).valueOf() : 0
+        const bTime = bValue ? dayjs(bValue).valueOf() : 0
+
+        return sortOrder === 'asc' ? aTime - bTime : bTime - aTime
+      }
+
+      return sortOrder === 'asc'
+        ? String(aValue).localeCompare(String(bValue), 'vi')
+        : String(bValue).localeCompare(String(aValue), 'vi')
+    })
+  }, [customers, search, sortField, sortOrder])
+
+  // ====================================================
+  // PAGINATION
+  // ====================================================
 
   const paginatedCustomers = useMemo(() => {
     const start = page * rowsPerPage
 
     return filteredCustomers.slice(start, start + rowsPerPage)
-  }, [filteredCustomers, page])
+  }, [filteredCustomers, page, rowsPerPage])
+
+  // ====================================================
+  // BACK
+  // ====================================================
 
   const handleBack = () => {
-    router.push('/vaccination-schedules')
+    router.push(`/vaccination-schedules?page=${currentPage}`)
   }
 
-  const handleOpenAddCustomer = () => {
-    reset()
-    setOpenAddCustomer(true)
-  }
-
-  const handleCloseAddCustomer = () => {
-    setOpenAddCustomer(false)
-    reset()
-  }
+  // ====================================================
+  // CHANGE PAGE
+  // ====================================================
 
   const handleChangePage = (
     _event: React.MouseEvent<HTMLButtonElement> | null,
@@ -293,39 +301,16 @@ const ScheduleDetail = ({ scheduleId }: ScheduleDetailProps) => {
     setPage(newPage)
   }
 
-  const onSubmit = async (data: CustomerFormData) => {
-    const payload = {
-      scheduleId,
-      ...data
-    }
-
-    console.log('Add customer:', payload)
-
-    // TODO: gọi API thêm KH vào lịch tiêm
-
-    const newCustomer: Customer = {
-      id:
-        customers.length > 0
-          ? Math.max(...customers.map((customer) => customer.id)) + 1
-          : 1,
-      fullName: data.fullName,
-      dateOfBirth: data.dateOfBirth,
-      gender:
-        data.gender === 'male'
-          ? 'Nam'
-          : data.gender === 'female'
-            ? 'Nữ'
-            : 'Khác',
-      phone: data.phone,
-      identityNumber: data.identityNumber
-    }
-
-    setCustomers((current) => [newCustomer, ...current])
-
+  const handleChangeRowsPerPage = (
+    event: React.ChangeEvent<HTMLInputElement>
+  ) => {
+    setRowsPerPage(Number(event.target.value))
     setPage(0)
-    setSearch('')
-    handleCloseAddCustomer()
   }
+
+  // ====================================================
+  // RENDER
+  // ====================================================
 
   return (
     <Box
@@ -360,78 +345,53 @@ const ScheduleDetail = ({ scheduleId }: ScheduleDetailProps) => {
             flexDirection: 'column'
           }}
         >
-          {/* HEADER */}
+          {/* ====================================================
+              HEADER
+          ==================================================== */}
+
           <Box
             sx={{
               px: 2.5,
               py: 2,
               flexShrink: 0,
               display: 'flex',
-              alignItems: {
-                xs: 'flex-start',
-                sm: 'center'
-              },
-              justifyContent: 'space-between',
-              flexDirection: {
-                xs: 'column',
-                sm: 'row'
-              },
-              gap: 2
+              alignItems: 'center',
+              gap: 1.5
             }}
           >
-            <Box
+            <IconButton
+              onClick={handleBack}
               sx={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: 1.5
+                border: '1px solid',
+                borderColor: 'divider'
               }}
             >
-              <IconButton
-                onClick={handleBack}
+              <ArrowBackOutlinedIcon />
+            </IconButton>
+
+            <Box>
+              <Typography
+                variant="h5"
                 sx={{
-                  border: '1px solid',
-                  borderColor: 'divider'
+                  fontWeight: 600,
+                  lineHeight: 1.3
                 }}
               >
-                <ArrowBackOutlinedIcon />
-              </IconButton>
+                Chi tiết lịch tiêm
+              </Typography>
 
-              <Box>
-                <Typography
-                  variant="h5"
-                  sx={{
-                    fontWeight: 600,
-                    lineHeight: 1.3
-                  }}
-                >
-                  Chi tiết lịch tiêm
-                </Typography>
-
-                <Typography variant="body2" color="text.secondary">
-                  Quản lý khách hàng đăng ký lịch tiêm
-                </Typography>
-              </Box>
+              <Typography variant="body2" color="text.secondary">
+                Quản lý khách hàng đăng ký lịch tiêm
+              </Typography>
             </Box>
-
-            <Button
-              variant="contained"
-              startIcon={<AddOutlinedIcon />}
-              onClick={handleOpenAddCustomer}
-              sx={{
-                minHeight: 42,
-                px: 2.5,
-                borderRadius: 2,
-                textTransform: 'none',
-                fontWeight: 600
-              }}
-            >
-              Thêm khách hàng
-            </Button>
           </Box>
 
           <Divider />
 
-          {/* THÔNG TIN LỊCH TIÊM */}
+          {/* ====================================================
+              THÔNG TIN LỊCH TIÊM
+          ==================================================== */}
+
           <Box
             sx={{
               px: 2.5,
@@ -445,11 +405,13 @@ const ScheduleDetail = ({ scheduleId }: ScheduleDetailProps) => {
                 gridTemplateColumns: {
                   xs: '1fr',
                   sm: 'repeat(2, 1fr)',
-                  lg: 'repeat(4, 1fr)'
+                  lg: '0.8fr 0.8fr 1fr 1fr 0.8fr 1.6fr'
                 },
                 gap: 1.5
               }}
             >
+              {/* NGÀY TIÊM */}
+
               <Box
                 sx={{
                   p: 1.5,
@@ -460,27 +422,40 @@ const ScheduleDetail = ({ scheduleId }: ScheduleDetailProps) => {
                 <Box
                   sx={{
                     display: 'flex',
-                    alignItems: 'center',
+                    alignItems: 'flex-start',
                     gap: 1
                   }}
                 >
-                  <EventOutlinedIcon color="primary" fontSize="small" />
+                  <EventOutlinedIcon
+                    color="primary"
+                    fontSize="small"
+                    sx={{ mt: 0.25 }}
+                  />
 
                   <Box>
-                    <Typography variant="caption" color="text.secondary">
+                    <Typography
+                      variant="body2"
+                      color="text.secondary"
+                      sx={{ fontWeight: 500 }}
+                    >
                       Ngày tiêm
                     </Typography>
 
                     <Typography
                       sx={{
-                        fontWeight: 600
+                        fontWeight: 600,
+                        whiteSpace: 'nowrap'
                       }}
                     >
-                      {dayjs(schedule.vaccinationDate).format('DD/MM/YYYY')}
+                      {schedule
+                        ? dayjs(schedule.vaccination_date).format('DD/MM/YYYY')
+                        : '-'}
                     </Typography>
                   </Box>
                 </Box>
               </Box>
+
+              {/* GIỜ TIÊM */}
 
               <Box
                 sx={{
@@ -492,27 +467,35 @@ const ScheduleDetail = ({ scheduleId }: ScheduleDetailProps) => {
                 <Box
                   sx={{
                     display: 'flex',
-                    alignItems: 'center',
+                    alignItems: 'flex-start',
                     gap: 1
                   }}
                 >
-                  <AccessTimeOutlinedIcon color="primary" fontSize="small" />
+                  <AccessTimeOutlinedIcon
+                    color="primary"
+                    fontSize="small"
+                    sx={{ mt: 0.25 }}
+                  />
 
                   <Box>
-                    <Typography variant="caption" color="text.secondary">
+                    <Typography
+                      variant="body2"
+                      color="text.secondary"
+                      sx={{ fontWeight: 500 }}
+                    >
                       Giờ tiêm
                     </Typography>
 
-                    <Typography
-                      sx={{
-                        fontWeight: 600
-                      }}
-                    >
-                      {schedule.vaccinationTime}
+                    <Typography sx={{ fontWeight: 600 }}>
+                      {schedule
+                        ? dayjs(schedule.vaccination_date).format('HH:mm')
+                        : '-'}
                     </Typography>
                   </Box>
                 </Box>
               </Box>
+
+              {/* VACCINE */}
 
               <Box
                 sx={{
@@ -524,27 +507,33 @@ const ScheduleDetail = ({ scheduleId }: ScheduleDetailProps) => {
                 <Box
                   sx={{
                     display: 'flex',
-                    alignItems: 'center',
+                    alignItems: 'flex-start',
                     gap: 1
                   }}
                 >
-                  <VaccinesOutlinedIcon color="primary" fontSize="small" />
+                  <VaccinesOutlinedIcon
+                    color="primary"
+                    fontSize="small"
+                    sx={{ mt: 0.25 }}
+                  />
 
                   <Box>
-                    <Typography variant="caption" color="text.secondary">
+                    <Typography
+                      variant="body2"
+                      color="text.secondary"
+                      sx={{ fontWeight: 500 }}
+                    >
                       Vaccine
                     </Typography>
 
-                    <Typography
-                      sx={{
-                        fontWeight: 600
-                      }}
-                    >
-                      {schedule.vaccine}
+                    <Typography sx={{ fontWeight: 600 }}>
+                      {schedule?.vaccine_name || '-'}
                     </Typography>
                   </Box>
                 </Box>
               </Box>
+
+              {/* GIÁ VACCINE */}
 
               <Box
                 sx={{
@@ -556,158 +545,420 @@ const ScheduleDetail = ({ scheduleId }: ScheduleDetailProps) => {
                 <Box
                   sx={{
                     display: 'flex',
-                    alignItems: 'center',
+                    alignItems: 'flex-start',
                     gap: 1
                   }}
                 >
-                  <PersonOutlineOutlinedIcon color="primary" fontSize="small" />
+                  <VaccinesOutlinedIcon
+                    color="primary"
+                    fontSize="small"
+                    sx={{ mt: 0.25 }}
+                  />
 
                   <Box>
-                    <Typography variant="caption" color="text.secondary">
-                      Đăng ký
+                    <Typography
+                      variant="body2"
+                      color="text.secondary"
+                      sx={{ fontWeight: 500 }}
+                    >
+                      Giá vaccine
                     </Typography>
 
                     <Typography
                       sx={{
-                        fontWeight: 600
+                        fontWeight: 600,
+                        whiteSpace: 'nowrap'
                       }}
                     >
-                      {customers.length}/{schedule.quantity}
+                      {schedule?.price != null
+                        ? `${Number(schedule.price).toLocaleString('vi-VN')} đ`
+                        : '-'}
                     </Typography>
+                  </Box>
+                </Box>
+              </Box>
+
+              {/* ĐỘ TUỔI */}
+
+              <Box
+                sx={{
+                  p: 1.5,
+                  borderRadius: 2,
+                  bgcolor: '#f8fafc'
+                }}
+              >
+                <Box
+                  sx={{
+                    display: 'flex',
+                    alignItems: 'flex-start',
+                    gap: 1
+                  }}
+                >
+                  <GroupsOutlinedIcon
+                    color="primary"
+                    fontSize="small"
+                    sx={{ mt: 0.25 }}
+                  />
+
+                  <Box>
+                    <Typography
+                      variant="body2"
+                      color="text.secondary"
+                      sx={{ fontWeight: 500 }}
+                    >
+                      Độ tuổi
+                    </Typography>
+
+                    <Typography sx={{ fontWeight: 600 }}>
+                      {schedule?.age || '-'}
+                    </Typography>
+                  </Box>
+                </Box>
+              </Box>
+
+              {/* ĐỊA ĐIỂM TIÊM */}
+
+              <Box
+                sx={{
+                  p: 1.5,
+                  borderRadius: 2,
+                  bgcolor: '#f8fafc'
+                }}
+              >
+                <Box
+                  sx={{
+                    display: 'flex',
+                    alignItems: 'flex-start',
+                    gap: 1
+                  }}
+                >
+                  <LocationOnOutlinedIcon
+                    color="primary"
+                    fontSize="small"
+                    sx={{ mt: 0.25 }}
+                  />
+
+                  <Box sx={{ minWidth: 0 }}>
+                    <Typography
+                      variant="body2"
+                      color="text.secondary"
+                      sx={{ fontWeight: 500 }}
+                    >
+                      Địa điểm tiêm
+                    </Typography>
+
+                    <Box
+                      sx={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: 1,
+                        mt: 0.25,
+                        minWidth: 0
+                      }}
+                    >
+                      <Typography
+                        sx={{
+                          fontWeight: 600,
+                          whiteSpace: 'nowrap'
+                        }}
+                      >
+                        {schedule?.location_name || '-'}
+                      </Typography>
+
+                      <Typography
+                        sx={{
+                          fontWeight: 600,
+                          whiteSpace: 'nowrap'
+                        }}
+                      >
+                        — {schedule?.location_address || '-'}
+                      </Typography>
+                    </Box>
                   </Box>
                 </Box>
               </Box>
             </Box>
           </Box>
 
-          {/* CUSTOMER TOOLBAR */}
+          {/* ====================================================
+              CUSTOMER TOOLBAR
+          ==================================================== */}
+
           <Box
             sx={{
               px: 2.5,
-              py: 1.5,
+              pt: 2.5,
+              pb: 1.5,
+              mt: 1,
               flexShrink: 0,
               borderTop: '1px solid',
               borderBottom: '1px solid',
               borderColor: 'divider',
-              bgcolor: '#fafbfc',
-              display: 'flex',
-              alignItems: {
-                xs: 'stretch',
-                sm: 'center'
-              },
-              justifyContent: 'space-between',
-              flexDirection: {
-                xs: 'column',
-                sm: 'row'
-              },
-              gap: 1.5
+              bgcolor: '#fafbfc'
             }}
           >
-            <Box>
+            <Typography
+              variant="h6"
+              sx={{
+                fontWeight: 600,
+                mb: 1.5
+              }}
+            >
+              Danh sách khách hàng
+            </Typography>
+
+            <Box
+              sx={{
+                display: 'flex',
+                alignItems: {
+                  xs: 'stretch',
+                  sm: 'center'
+                },
+                justifyContent: 'space-between',
+                flexDirection: {
+                  xs: 'column',
+                  sm: 'row'
+                },
+                gap: 1.5
+              }}
+            >
+              <TextField
+                size="small"
+                value={search}
+                onChange={(event) => {
+                  setSearch(event.target.value)
+                  setPage(0)
+                }}
+                placeholder="Tìm tên, SĐT, CCCD, địa chỉ..."
+                sx={{
+                  width: {
+                    xs: '100%',
+                    sm: 340
+                  },
+                  bgcolor: '#fff'
+                }}
+                slotProps={{
+                  input: {
+                    startAdornment: (
+                      <InputAdornment position="start">
+                        <SearchOutlinedIcon fontSize="small" color="action" />
+                      </InputAdornment>
+                    )
+                  }
+                }}
+              />
+
               <Typography
                 sx={{
-                  fontWeight: 600
+                  fontWeight: 600,
+                  whiteSpace: 'nowrap'
                 }}
               >
-                Danh sách khách hàng
-              </Typography>
-
-              <Typography variant="body2" color="text.secondary">
                 {filteredCustomers.length} khách hàng
               </Typography>
             </Box>
-
-            <TextField
-              size="small"
-              value={search}
-              onChange={(event) => {
-                setSearch(event.target.value)
-                setPage(0)
-              }}
-              placeholder="Tìm tên, SĐT, CCCD..."
-              sx={{
-                width: {
-                  xs: '100%',
-                  sm: 320
-                },
-                bgcolor: '#fff'
-              }}
-              slotProps={{
-                input: {
-                  startAdornment: (
-                    <InputAdornment position="start">
-                      <SearchOutlinedIcon fontSize="small" color="action" />
-                    </InputAdornment>
-                  )
-                }
-              }}
-            />
           </Box>
 
-          {/* CUSTOMER TABLE */}
+          {/* ====================================================
+              CUSTOMER TABLE
+          ==================================================== */}
+
           <TableContainer
             sx={{
-              flex: 1,
               minHeight: 0,
-              overflow: 'auto'
+              flex: rowsPerPage === 5 ? '0 0 auto' : 1,
+
+              overflowX: 'auto',
+              overflowY: rowsPerPage === 5 ? 'hidden' : 'auto',
+
+              scrollbarWidth: 'thin',
+
+              '&::-webkit-scrollbar': {
+                width: '9px',
+                height: '9px'
+              },
+
+              '&::-webkit-scrollbar-track': {
+                backgroundColor: '#f1f1f1'
+              },
+
+              '&::-webkit-scrollbar-thumb': {
+                backgroundColor: '#999',
+                borderRadius: '10px',
+                border: '2px solid #f1f1f1'
+              },
+
+              '&::-webkit-scrollbar-thumb:hover': {
+                backgroundColor: '#777'
+              },
+
+              '&::-webkit-scrollbar-button': {
+                display: 'none'
+              }
             }}
           >
-            <Table
-              stickyHeader
-              sx={{
-                minWidth: 900
-              }}
-            >
+            <Table stickyHeader={rowsPerPage > 5} sx={{ minWidth: 1200 }}>
               <TableHead>
                 <TableRow>
                   <TableCell sx={{ fontWeight: 600 }}>STT</TableCell>
 
-                  <TableCell sx={{ fontWeight: 600 }}>Họ và tên</TableCell>
+                  <TableCell sx={{ fontWeight: 600 }}>
+                    <TableSortLabel
+                      active={sortField === 'fullName'}
+                      direction={sortField === 'fullName' ? sortOrder : 'asc'}
+                      onClick={() => handleSort('fullName')}
+                    >
+                      Họ và tên
+                    </TableSortLabel>
+                  </TableCell>
 
-                  <TableCell sx={{ fontWeight: 600 }}>Ngày sinh</TableCell>
+                  <TableCell sx={{ fontWeight: 600 }}>
+                    <TableSortLabel
+                      active={sortField === 'dateOfBirth'}
+                      direction={
+                        sortField === 'dateOfBirth' ? sortOrder : 'asc'
+                      }
+                      onClick={() => handleSort('dateOfBirth')}
+                    >
+                      Ngày sinh
+                    </TableSortLabel>
+                  </TableCell>
 
-                  <TableCell sx={{ fontWeight: 600 }}>Giới tính</TableCell>
+                  <TableCell sx={{ fontWeight: 600 }}>
+                    <TableSortLabel
+                      active={sortField === 'gender'}
+                      direction={sortField === 'gender' ? sortOrder : 'asc'}
+                      onClick={() => handleSort('gender')}
+                    >
+                      Giới tính
+                    </TableSortLabel>
+                  </TableCell>
 
-                  <TableCell sx={{ fontWeight: 600 }}>Số điện thoại</TableCell>
+                  <TableCell sx={{ fontWeight: 600 }}>
+                    <TableSortLabel
+                      active={sortField === 'phone'}
+                      direction={sortField === 'phone' ? sortOrder : 'asc'}
+                      onClick={() => handleSort('phone')}
+                    >
+                      Số điện thoại
+                    </TableSortLabel>
+                  </TableCell>
 
-                  <TableCell sx={{ fontWeight: 600 }}>CCCD</TableCell>
+                  <TableCell sx={{ fontWeight: 600 }}>
+                    <TableSortLabel
+                      active={sortField === 'cccd'}
+                      direction={sortField === 'cccd' ? sortOrder : 'asc'}
+                      onClick={() => handleSort('cccd')}
+                    >
+                      CCCD
+                    </TableSortLabel>
+                  </TableCell>
+
+                  <TableCell sx={{ fontWeight: 600 }}>
+                    <TableSortLabel
+                      active={sortField === 'address'}
+                      direction={sortField === 'address' ? sortOrder : 'asc'}
+                      onClick={() => handleSort('address')}
+                    >
+                      Địa chỉ
+                    </TableSortLabel>
+                  </TableCell>
+
+                  <TableCell
+                    align="center"
+                    sx={{
+                      fontWeight: 600,
+                      whiteSpace: 'nowrap'
+                    }}
+                  >
+                    Thao tác
+                  </TableCell>
                 </TableRow>
               </TableHead>
 
               <TableBody>
                 {paginatedCustomers.map((customer, index) => (
-                  <TableRow key={customer.id} hover>
+                  <TableRow key={customer.booking_id} hover>
                     <TableCell>{page * rowsPerPage + index + 1}</TableCell>
 
                     <TableCell
                       sx={{
-                        fontWeight: 500
+                        fontWeight: 500,
+                        whiteSpace: 'nowrap'
                       }}
                     >
                       {customer.fullName}
                     </TableCell>
 
-                    <TableCell>
-                      {dayjs(customer.dateOfBirth).format('DD/MM/YYYY')}
+                    <TableCell sx={{ whiteSpace: 'nowrap' }}>
+                      {customer.dateOfBirth
+                        ? dayjs(customer.dateOfBirth).format('DD/MM/YYYY')
+                        : '-'}
                     </TableCell>
 
-                    <TableCell>{customer.gender}</TableCell>
+                    <TableCell>{customer.gender || '-'}</TableCell>
 
-                    <TableCell>{customer.phone}</TableCell>
+                    <TableCell sx={{ whiteSpace: 'nowrap' }}>
+                      {customer.phone || '-'}
+                    </TableCell>
 
-                    <TableCell>{customer.identityNumber}</TableCell>
+                    <TableCell sx={{ whiteSpace: 'nowrap' }}>
+                      {customer.cccd || '-'}
+                    </TableCell>
+
+                    <TableCell
+                      sx={{
+                        minWidth: 180,
+                        maxWidth: 260
+                      }}
+                    >
+                      {customer.address || '-'}
+                    </TableCell>
+                    {(isAdmin || isDoctor || isNurse) && (
+                      <TableCell align="center">
+                        <Box
+                          sx={{
+                            display: 'flex',
+                            justifyContent: 'center',
+                            gap: 1
+                          }}
+                        >
+                          <Button
+                            size="small"
+                            variant="contained"
+                            color="success"
+                            disabled={customer.status === 'COMPLETED'}
+                            onClick={() => handleOpenComplete(customer)}
+                            sx={{ textTransform: 'none', whiteSpace: 'nowrap' }}
+                          >
+                            {customer.status === 'COMPLETED'
+                              ? 'Đã tiêm'
+                              : 'Xác Nhận'}
+                          </Button>
+
+                          <Button
+                            size="small"
+                            variant="outlined"
+                            color="error"
+                            disabled={customer.status === 'COMPLETED'}
+                            startIcon={<CancelOutlinedIcon />}
+                            onClick={() => handleOpenCancel(customer)}
+                            sx={{
+                              textTransform: 'none',
+                              whiteSpace: 'nowrap'
+                            }}
+                          >
+                            Hủy
+                          </Button>
+                        </Box>
+                      </TableCell>
+                    )}
                   </TableRow>
                 ))}
 
-                {paginatedCustomers.length === 0 && (
+                {!loading && paginatedCustomers.length === 0 && (
                   <TableRow>
-                    <TableCell
-                      colSpan={6}
-                      align="center"
-                      sx={{
-                        py: 6
-                      }}
-                    >
+                    <TableCell colSpan={8} align="center" sx={{ py: 6 }}>
                       <PersonOutlineOutlinedIcon
                         sx={{
                           fontSize: 42,
@@ -716,11 +967,7 @@ const ScheduleDetail = ({ scheduleId }: ScheduleDetailProps) => {
                         }}
                       />
 
-                      <Typography
-                        sx={{
-                          fontWeight: 600
-                        }}
-                      >
+                      <Typography sx={{ fontWeight: 600 }}>
                         Không tìm thấy khách hàng
                       </Typography>
 
@@ -734,9 +981,13 @@ const ScheduleDetail = ({ scheduleId }: ScheduleDetailProps) => {
             </Table>
           </TableContainer>
 
-          {/* PAGINATION */}
+          {/* ====================================================
+              PAGINATION
+          ==================================================== */}
+
           <Box
             sx={{
+              mt: rowsPerPage === 5 ? 'auto' : 0,
               flexShrink: 0,
               borderTop: '1px solid',
               borderColor: 'divider',
@@ -749,224 +1000,143 @@ const ScheduleDetail = ({ scheduleId }: ScheduleDetailProps) => {
               page={page}
               onPageChange={handleChangePage}
               rowsPerPage={rowsPerPage}
-              rowsPerPageOptions={[]}
-              labelDisplayedRows={({ from, to, count }) =>
-                `${from}-${to} / ${count}`
-              }
+              onRowsPerPageChange={handleChangeRowsPerPage}
+              rowsPerPageOptions={[5, 10, 20, 50]}
+              labelRowsPerPage="Số dòng mỗi trang:"
+              labelDisplayedRows={() => {
+                const totalPages = Math.max(
+                  1,
+                  Math.ceil(filteredCustomers.length / rowsPerPage)
+                )
+
+                return `Trang ${page + 1} / ${totalPages}`
+              }}
             />
           </Box>
         </Paper>
-      </Box>
 
-      {/* ADD CUSTOMER DIALOG */}
-      <Dialog
-        open={openAddCustomer}
-        onClose={handleCloseAddCustomer}
-        fullWidth
-        maxWidth="md"
-        slotProps={{
-          paper: {
-            sx: {
-              borderRadius: 2.5
+        {/* ====================================================
+            DIALOG Xác Nhận
+        ==================================================== */}
+
+        <Dialog
+          open={Boolean(completeCustomer)}
+          onClose={handleCloseComplete}
+          fullWidth
+          maxWidth="xs"
+          slotProps={{
+            paper: {
+              sx: {
+                borderRadius: 2.5
+              }
             }
-          }
-        }}
-      >
-        <Box component="form" noValidate onSubmit={handleSubmit(onSubmit)}>
-          <DialogTitle
-            sx={{
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'space-between',
-              pr: 1
-            }}
-          >
-            <Box>
-              <Typography
-                variant="h6"
-                sx={{
-                  fontWeight: 600
-                }}
-              >
-                Thêm khách hàng
-              </Typography>
-
-              <Typography variant="body2" color="text.secondary">
-                {schedule.vaccine}
-                {' • '}
-                {dayjs(schedule.vaccinationDate).format('DD/MM/YYYY')}
-                {' • '}
-                {schedule.vaccinationTime}
-              </Typography>
-            </Box>
-
-            <IconButton onClick={handleCloseAddCustomer}>
-              <CloseOutlinedIcon />
-            </IconButton>
+          }}
+        >
+          <DialogTitle>
+            <Typography variant="h6" sx={{ fontWeight: 600 }}>
+              Xác nhận đã tiêm
+            </Typography>
           </DialogTitle>
 
           <Divider />
 
           <DialogContent>
-            <Box
-              sx={{
-                display: 'grid',
-                gridTemplateColumns: {
-                  xs: '1fr',
-                  md: 'repeat(2, 1fr)'
-                },
-                gap: 2,
-                pt: 1
-              }}
-            >
-              <TextField
-                label="Họ và tên"
-                required
-                fullWidth
-                {...register('fullName')}
-                error={Boolean(errors.fullName)}
-                helperText={errors.fullName?.message}
-                slotProps={{
-                  htmlInput: {
-                    maxLength: 100
-                  }
-                }}
-              />
-
-              <Controller
-                name="dateOfBirth"
-                control={control}
-                render={({ field }) => (
-                  <DatePicker
-                    label="Ngày sinh"
-                    format="DD/MM/YYYY"
-                    disableFuture
-                    value={field.value ? dayjs(field.value) : null}
-                    onChange={(value) =>
-                      field.onChange(value ? value.format('YYYY-MM-DD') : '')
-                    }
-                    slotProps={{
-                      textField: {
-                        fullWidth: true,
-                        required: true,
-                        error: Boolean(errors.dateOfBirth),
-                        helperText: errors.dateOfBirth?.message
-                      }
-                    }}
-                  />
-                )}
-              />
-
-              <TextField
-                select
-                label="Giới tính"
-                required
-                fullWidth
-                defaultValue=""
-                {...register('gender')}
-                error={Boolean(errors.gender)}
-                helperText={errors.gender?.message}
-              >
-                <MenuItem value="male">Nam</MenuItem>
-
-                <MenuItem value="female">Nữ</MenuItem>
-
-                <MenuItem value="other">Khác</MenuItem>
-              </TextField>
-
-              <TextField
-                label="Số điện thoại"
-                required
-                fullWidth
-                placeholder="VD: 0901234567"
-                {...register('phone')}
-                error={Boolean(errors.phone)}
-                helperText={errors.phone?.message}
-                slotProps={{
-                  htmlInput: {
-                    maxLength: 10,
-                    inputMode: 'numeric'
-                  }
-                }}
-              />
-
-              <TextField
-                label="CCCD"
-                required
-                fullWidth
-                placeholder="Nhập 12 số CCCD"
-                {...register('identityNumber')}
-                error={Boolean(errors.identityNumber)}
-                helperText={errors.identityNumber?.message}
-                slotProps={{
-                  htmlInput: {
-                    maxLength: 12,
-                    inputMode: 'numeric'
-                  }
-                }}
-              />
-
-              <TextField
-                label="Địa chỉ"
-                required
-                fullWidth
-                {...register('address')}
-                error={Boolean(errors.address)}
-                helperText={errors.address?.message}
-              />
-
-              <TextField
-                label="Ghi chú"
-                fullWidth
-                multiline
-                minRows={3}
-                {...register('note')}
-                error={Boolean(errors.note)}
-                helperText={errors.note?.message}
-                sx={{
-                  gridColumn: {
-                    xs: 'auto',
-                    md: '1 / -1'
-                  }
-                }}
-              />
-            </Box>
+            <Typography>
+              Bạn có chắc chắn khách hàng{' '}
+              <Box component="span" sx={{ fontWeight: 600 }}>
+                {completeCustomer?.fullName}
+              </Box>{' '}
+              đã tiêm tiêm chủng?
+            </Typography>
           </DialogContent>
 
           <Divider />
 
-          <DialogActions
-            sx={{
-              px: 3,
-              py: 2
-            }}
-          >
+          <DialogActions sx={{ px: 3, py: 2 }}>
             <Button
               variant="outlined"
-              onClick={handleCloseAddCustomer}
-              sx={{
-                minWidth: 100,
-                textTransform: 'none'
-              }}
+              onClick={handleCloseComplete}
+              disabled={completeLoading}
+              sx={{ textTransform: 'none' }}
             >
-              Hủy
+              Đóng
             </Button>
 
             <Button
-              type="submit"
               variant="contained"
-              disabled={isSubmitting}
-              startIcon={<AddOutlinedIcon />}
-              sx={{
-                minWidth: 150,
-                textTransform: 'none'
-              }}
+              color="success"
+              onClick={handleConfirmComplete}
+              disabled={completeLoading}
+              sx={{ textTransform: 'none' }}
             >
-              Đăng Ký Tiêm
+              {completeLoading ? 'Đang xử lý...' : 'Xác nhận đã tiêm'}
             </Button>
           </DialogActions>
-        </Box>
-      </Dialog>
+        </Dialog>
+
+        {/* ====================================================
+            DIALOG HỦY
+        ==================================================== */}
+
+        <Dialog
+          open={Boolean(cancelCustomer)}
+          onClose={handleCloseCancel}
+          fullWidth
+          maxWidth="xs"
+          slotProps={{
+            paper: {
+              sx: {
+                borderRadius: 2.5
+              }
+            }
+          }}
+        >
+          <DialogTitle>
+            <Typography variant="h6" sx={{ fontWeight: 600 }}>
+              Xác nhận hủy đăng ký
+            </Typography>
+          </DialogTitle>
+
+          <Divider />
+
+          <DialogContent>
+            <Typography>
+              Bạn có chắc chắn muốn hủy đăng ký tiêm của{' '}
+              <Box component="span" sx={{ fontWeight: 600 }}>
+                {cancelCustomer?.fullName}
+              </Box>
+              ?
+            </Typography>
+
+            <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
+              Khách hàng sẽ được xóa khỏi danh sách đăng ký của lịch tiêm này.
+            </Typography>
+          </DialogContent>
+
+          <Divider />
+
+          <DialogActions sx={{ px: 3, py: 2 }}>
+            <Button
+              variant="outlined"
+              onClick={handleCloseCancel}
+              disabled={cancelLoading}
+              sx={{ textTransform: 'none' }}
+            >
+              Đóng
+            </Button>
+
+            <Button
+              variant="contained"
+              color="error"
+              onClick={handleConfirmCancel}
+              disabled={cancelLoading}
+              sx={{ textTransform: 'none' }}
+            >
+              {cancelLoading ? 'Đang hủy...' : 'Xác nhận hủy'}
+            </Button>
+          </DialogActions>
+        </Dialog>
+      </Box>
     </Box>
   )
 }

@@ -13,15 +13,27 @@ import {
 
 import ArrowBackOutlinedIcon from '@mui/icons-material/ArrowBackOutlined'
 import CalendarMonthOutlinedIcon from '@mui/icons-material/CalendarMonthOutlined'
-import RestartAltOutlinedIcon from '@mui/icons-material/RestartAltOutlined'
 import SaveOutlinedIcon from '@mui/icons-material/SaveOutlined'
 
 import { Controller, useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { DatePicker, TimePicker } from '@mui/x-date-pickers'
 import { useRouter } from 'next/navigation'
+import { useEffect, useState } from 'react'
 import dayjs from 'dayjs'
+import axios from 'axios'
+import { toast } from 'react-toastify'
 import { z } from 'zod'
+
+import {
+  createVaccinationScheduleAPI,
+  getVaccinationLocationAPI,
+  getAllVaccineAPI,
+  getVaccinationStaffAPI,
+  type Vaccine,
+  type VaccinationStaff,
+  type VaccinationLocation
+} from '@/services/vaccination-schedule.service'
 
 // ======================================================
 // VALIDATION
@@ -30,109 +42,96 @@ import { z } from 'zod'
 const scheduleSchema = z
   .object({
     vaccinationDate: z.string().min(1, 'Vui lòng chọn ngày tiêm'),
-
     vaccinationTime: z.string().min(1, 'Vui lòng chọn giờ tiêm'),
 
-    vaccine: z.string().min(1, 'Vui lòng chọn vaccine'),
+    vaccine_id: z
+      .number({ message: 'Vui lòng chọn vaccine' })
+      .min(1, 'Vui lòng chọn vaccine'),
 
-    quantity: z
-      .number({
-        message: 'Vui lòng nhập số lượng vaccine'
-      })
-      .int('Số lượng vaccine phải là số nguyên')
-      .min(1, 'Số lượng vaccine phải ít nhất là 1')
-      .max(1000, 'Số lượng vaccine không được vượt quá 1000'),
+    capacity: z
+      .number({ message: 'Vui lòng nhập số lượng' })
+      .int('Số lượng phải là số nguyên')
+      .min(1, 'Số lượng phải lớn hơn 0'),
+    age: z.string().trim().min(1, 'Vui lòng nhập độ tuổi').max(100),
 
-    age: z
-      .string()
-      .trim()
-      .min(1, 'Vui lòng nhập độ tuổi')
-      .refine((value) => /^\d+$/.test(value), {
-        message: 'Độ tuổi phải là số'
-      })
-      .refine((value) => Number(value) >= 0, {
-        message: 'Độ tuổi không được nhỏ hơn 0'
-      })
-      .refine((value) => Number(value) <= 120, {
-        message: 'Độ tuổi không được vượt quá 120 tuổi'
-      }),
+    user_id: z
+      .number({ message: 'Vui lòng chọn nhân viên y tế' })
+      .min(1, 'Vui lòng chọn nhân viên y tế'),
 
-    medicalStaff: z.string().min(1, 'Vui lòng chọn nhân viên y tế'),
+    location_id: z
+      .number({ message: 'Vui lòng chọn địa điểm tiêm' })
+      .min(1, 'Vui lòng chọn địa điểm tiêm'),
 
     note: z.string().trim().max(500, 'Ghi chú không được vượt quá 500 ký tự')
   })
-  .superRefine((data, ctx) => {
-    if (!data.vaccinationDate || !data.vaccinationTime) {
-      return
+  .refine(
+    (data) =>
+      dayjs(`${data.vaccinationDate}T${data.vaccinationTime}`).isAfter(dayjs()),
+    {
+      message: 'Ngày giờ tiêm phải lớn hơn thời gian hiện tại',
+      path: ['vaccinationTime']
     }
+  )
 
-    const vaccinationDateTime = dayjs(
-      `${data.vaccinationDate}T${data.vaccinationTime}`
-    )
-
-    if (!vaccinationDateTime.isValid()) {
-      return
-    }
-
-    if (!vaccinationDateTime.isAfter(dayjs())) {
-      ctx.addIssue({
-        code: 'custom',
-        path: ['vaccinationDate'],
-        message: 'Ngày và giờ tiêm phải lớn hơn thời gian hiện tại'
-      })
-
-      ctx.addIssue({
-        code: 'custom',
-        path: ['vaccinationTime'],
-        message: 'Ngày và giờ tiêm phải lớn hơn thời gian hiện tại'
-      })
-    }
-  })
-
-type ScheduleForm = z.infer<typeof scheduleSchema>
-
-// ======================================================
-// DEFAULT VALUES
-// ======================================================
-
-const getDefaultValues = (): ScheduleForm => ({
-  vaccine: '',
-
-  vaccinationDate: dayjs().format('YYYY-MM-DD'),
-
-  vaccinationTime: dayjs().add(5, 'minute').format('HH:mm'),
-
-  quantity: 1,
-
-  age: '',
-
-  medicalStaff: '',
-
-  note: ''
-})
+type ScheduleFormData = z.infer<typeof scheduleSchema>
 
 // ======================================================
 // COMPONENT
 // ======================================================
 
-const Schedule = () => {
+const ScheduleCreate = () => {
   const router = useRouter()
 
+  const [vaccines, setVaccines] = useState<Vaccine[]>([])
+  const [staff, setStaff] = useState<VaccinationStaff[]>([])
+  const [locations, setLocations] = useState<VaccinationLocation[]>([])
+
+  // ====================================================
+  // LOAD DATA
+  // ====================================================
+
+  useEffect(() => {
+    const fetchData = async () => {
+      try {
+        const [vaccinesData, staffData, locationData] = await Promise.all([
+          getAllVaccineAPI(),
+          getVaccinationStaffAPI(),
+          getVaccinationLocationAPI()
+        ])
+
+        setVaccines(vaccinesData)
+        setStaff(staffData)
+        setLocations(locationData)
+      } catch (error) {
+        console.error('Lỗi lấy dữ liệu:', error)
+        toast.error('Không thể tải dữ liệu')
+      }
+    }
+
+    fetchData()
+  }, [])
+
   const {
+    register,
     control,
     handleSubmit,
     reset,
-    watch,
+    setError,
     formState: { errors, isSubmitting }
-  } = useForm<ScheduleForm>({
+  } = useForm<ScheduleFormData>({
     resolver: zodResolver(scheduleSchema),
-
     mode: 'onTouched',
-
-    defaultValues: getDefaultValues()
+    defaultValues: {
+      vaccinationDate: dayjs().format('YYYY-MM-DD'),
+      vaccinationTime: dayjs().add(5, 'minute').format('HH:mm'),
+      vaccine_id: undefined,
+      capacity: 1,
+      age: '',
+      user_id: undefined,
+      location_id: undefined,
+      note: ''
+    }
   })
-
-  const note = watch('note') ?? ''
 
   // ====================================================
   // BACK
@@ -143,41 +142,39 @@ const Schedule = () => {
   }
 
   // ====================================================
-  // RESET
-  // ====================================================
-
-  const handleReset = () => {
-    reset(getDefaultValues())
-  }
-
-  // ====================================================
   // SUBMIT
   // ====================================================
 
-  const onSubmit = async (data: ScheduleForm) => {
-    const payload = {
-      vaccinationDate: data.vaccinationDate,
+  const handleCreate = async ({
+    vaccinationDate,
+    vaccinationTime,
+    ...data
+  }: ScheduleFormData) => {
+    try {
+      await createVaccinationScheduleAPI({
+        ...data,
+        vaccination_date: `${vaccinationDate}T${vaccinationTime}:00`
+      })
 
-      vaccinationTime: data.vaccinationTime,
+      toast.success('Tạo lịch tiêm thành công')
+      reset()
+      router.push('/vaccination-schedules')
+    } catch (error) {
+      if (axios.isAxiosError(error)) {
+        const { field, message } = error.response?.data || {}
 
-      vaccine: data.vaccine,
+        if (field && message) {
+          setError(field as keyof ScheduleFormData, {
+            type: 'server',
+            message
+          })
 
-      quantity: data.quantity,
+          return
+        }
+      }
 
-      age: data.age,
-
-      medicalStaff: data.medicalStaff,
-
-      note: data.note
+      toast.error('Tạo lịch tiêm thất bại')
     }
-
-    console.log('Schedule data:', payload)
-
-    // TODO:
-    // await createSchedule(payload)
-
-    // Sau khi API thành công:
-    // router.push('/vaccination-schedules')
   }
 
   // ====================================================
@@ -189,123 +186,81 @@ const Schedule = () => {
       component="main"
       sx={(theme) => ({
         ml: theme.layout.sidebarWidth,
-
         pt: theme.layout.headerHeight,
-
         minHeight: `calc(100vh - ${theme.layout.footerHeight})`,
-
         bgcolor: '#f5f7fb',
-
         boxSizing: 'border-box'
       })}
     >
-      {/* ================================================= */}
-      {/* FULL CONTENT */}
-      {/* ================================================= */}
-
       <Box
         sx={{
           width: '100%',
-
           p: 3,
-
           boxSizing: 'border-box'
         }}
       >
-        {/* ================================================= */}
-        {/* PAPER FULL WIDTH */}
-        {/* ================================================= */}
-
         <Paper
           variant="outlined"
           sx={{
             width: '100%',
-
             bgcolor: '#fff',
-
             borderRadius: 2.5,
-
             boxShadow: 'none',
-
             overflow: 'hidden'
           }}
         >
-          {/* ============================================= */}
+          {/* ================================================= */}
           {/* HEADER */}
-          {/* ============================================= */}
+          {/* ================================================= */}
 
           <Box
             sx={{
               px: 3,
-
               py: 2,
-
               display: 'flex',
-
               alignItems: 'center',
-
               gap: 1.5
             }}
           >
-            {/* BACK */}
-
             <IconButton
               onClick={handleBack}
               sx={{
                 width: 42,
-
                 height: 42,
-
                 flexShrink: 0,
-
                 border: '1px solid',
-
                 borderColor: 'divider',
-
                 bgcolor: '#fff'
               }}
             >
               <ArrowBackOutlinedIcon />
             </IconButton>
 
-            {/* ICON */}
-
             <Box
               sx={{
-                width: 42,
-
-                height: 42,
-
-                borderRadius: 2,
-
-                bgcolor: 'primary.main',
-
-                color: 'primary.contrastText',
-
+                width: 44,
+                height: 44,
+                flexShrink: 0,
                 display: {
                   xs: 'none',
                   sm: 'flex'
                 },
-
                 alignItems: 'center',
-
                 justifyContent: 'center',
-
-                flexShrink: 0
+                borderRadius: 2,
+                bgcolor: 'primary.main',
+                color: '#fff'
               }}
             >
               <CalendarMonthOutlinedIcon />
             </Box>
 
-            {/* TITLE */}
-
             <Box>
               <Typography
                 variant="h5"
                 sx={{
-                  fontWeight: 600,
-
-                  lineHeight: 1.3
+                  fontWeight: 700,
+                  lineHeight: 1.25
                 }}
               >
                 Tạo lịch tiêm chủng
@@ -325,29 +280,24 @@ const Schedule = () => {
 
           <Divider />
 
-          {/* ============================================= */}
+          {/* ================================================= */}
           {/* FORM */}
-          {/* ============================================= */}
+          {/* ================================================= */}
 
-          <Box component="form" noValidate onSubmit={handleSubmit(onSubmit)}>
-            {/* =========================================== */}
-            {/* FORM CONTENT */}
-            {/* =========================================== */}
-
+          <Box
+            component="form"
+            noValidate
+            onSubmit={handleSubmit(handleCreate)}
+          >
             <Box
               sx={{
                 p: 3,
-
                 display: 'grid',
-
                 gridTemplateColumns: {
                   xs: '1fr',
-
                   md: 'repeat(2, minmax(0, 1fr))'
                 },
-
                 columnGap: 2,
-
                 rowGap: 2
               }}
             >
@@ -361,67 +311,42 @@ const Schedule = () => {
                 render={({ field }) => (
                   <DatePicker
                     label="Ngày tiêm"
-
                     format="DD/MM/YYYY"
-
                     minDate={dayjs()}
-
                     value={field.value ? dayjs(field.value) : null}
-
-                    onChange={(value) => {
-                      field.onChange(value ? value.format('YYYY-MM-DD') : '')
-                    }}
-
+                    onChange={(value) =>
+                      field.onChange(value?.format('YYYY-MM-DD') ?? '')
+                    }
                     slotProps={{
                       textField: {
                         fullWidth: true,
-
                         required: true,
-
-                        onBlur: field.onBlur,
-
                         error: Boolean(errors.vaccinationDate),
-
                         helperText: errors.vaccinationDate?.message
                       }
                     }}
                   />
                 )}
               />
-
-              {/* ========================================= */}
-              {/* TIME */}
-              {/* ========================================= */}
-
               <Controller
                 name="vaccinationTime"
                 control={control}
                 render={({ field }) => (
                   <TimePicker
                     label="Giờ tiêm"
-
                     ampm={false}
-
                     format="HH:mm"
-
                     value={
                       field.value ? dayjs(`2000-01-01T${field.value}`) : null
                     }
-
-                    onChange={(value) => {
-                      field.onChange(value ? value.format('HH:mm') : '')
-                    }}
-
+                    onChange={(value) =>
+                      field.onChange(value?.format('HH:mm') ?? '')
+                    }
                     slotProps={{
                       textField: {
                         fullWidth: true,
-
                         required: true,
-
-                        onBlur: field.onBlur,
-
                         error: Boolean(errors.vaccinationTime),
-
                         helperText: errors.vaccinationTime?.message
                       }
                     }}
@@ -433,272 +358,192 @@ const Schedule = () => {
               {/* VACCINE */}
               {/* ========================================= */}
 
-              <Controller
-                name="vaccine"
-                control={control}
-                render={({ field }) => (
-                  <TextField
-                    {...field}
+              <TextField
+                select
+                label="Loại vaccine"
+                required
+                fullWidth
+                defaultValue=""
+                {...register('vaccine_id', {
+                  valueAsNumber: true
+                })}
+                error={Boolean(errors.vaccine_id)}
+                helperText={errors.vaccine_id?.message}
+              >
+                <MenuItem value="">
+                  <em>Chọn vaccine</em>
+                </MenuItem>
 
-                    select
-
-                    fullWidth
-
-                    required
-
-                    label="Loại vaccine"
-
-                    error={Boolean(errors.vaccine)}
-
-                    helperText={errors.vaccine?.message}
-                  >
-                    <MenuItem value="">
-                      <em>Chọn vaccine</em>
-                    </MenuItem>
-
-                    <MenuItem value="influenza">Vaccine cúm</MenuItem>
-
-                    <MenuItem value="hepatitis-b">Vaccine viêm gan B</MenuItem>
-
-                    <MenuItem value="hpv">Vaccine HPV</MenuItem>
-                  </TextField>
-                )}
-              />
+                {vaccines.map((vaccine) => (
+                  <MenuItem key={vaccine.vaccine_id} value={vaccine.vaccine_id}>
+                    {vaccine.vaccine_name}
+                  </MenuItem>
+                ))}
+              </TextField>
 
               {/* ========================================= */}
-              {/* QUANTITY */}
+              {/* CAPACITY */}
               {/* ========================================= */}
 
-              <Controller
-                name="quantity"
-                control={control}
-                render={({ field }) => (
-                  <TextField
-                    fullWidth
-
-                    required
-
-                    type="number"
-
-                    label="Số lượng vaccine"
-
-                    value={field.value ?? ''}
-
-                    onBlur={field.onBlur}
-
-                    onChange={(event) => {
-                      const value = event.target.value
-
-                      field.onChange(value === '' ? 0 : Number(value))
-                    }}
-
-                    error={Boolean(errors.quantity)}
-
-                    helperText={errors.quantity?.message}
-
-                    slotProps={{
-                      htmlInput: {
-                        min: 1,
-
-                        max: 1000,
-
-                        step: 1
-                      }
-                    }}
-                  />
-                )}
+              <TextField
+                label="Số lượng vaccine"
+                required
+                fullWidth
+                type="number"
+                {...register('capacity', {
+                  valueAsNumber: true
+                })}
+                error={Boolean(errors.capacity)}
+                helperText={errors.capacity?.message}
+                slotProps={{
+                  htmlInput: {
+                    min: 1,
+                    step: 1
+                  }
+                }}
               />
 
               {/* ========================================= */}
               {/* AGE */}
               {/* ========================================= */}
 
-              <Controller
-                name="age"
-                control={control}
-                render={({ field }) => (
-                  <TextField
-                    fullWidth
-
-                    required
-
-                    type="text"
-
-                    label="Độ tuổi"
-
-                    placeholder="VD: 18"
-
-                    value={field.value}
-
-                    onBlur={field.onBlur}
-
-                    onChange={(event) => {
-                      const value = event.target.value
-                        .replace(/\D/g, '')
-                        .slice(0, 3)
-
-                      field.onChange(value)
-                    }}
-
-                    error={Boolean(errors.age)}
-
-                    helperText={errors.age?.message || 'Nhập tuổi từ 0 đến 120'}
-
-                    slotProps={{
-                      htmlInput: {
-                        maxLength: 3,
-
-                        inputMode: 'numeric'
-                      }
-                    }}
-                  />
-                )}
+              <TextField
+                label="Độ tuổi"
+                required
+                fullWidth
+                placeholder="VD: 18 tuổi trở lên"
+                {...register('age')}
+                error={Boolean(errors.age)}
+                helperText={errors.age?.message}
+                slotProps={{
+                  htmlInput: {
+                    maxLength: 100
+                  }
+                }}
               />
 
               {/* ========================================= */}
               {/* MEDICAL STAFF */}
               {/* ========================================= */}
 
-              <Controller
-                name="medicalStaff"
-                control={control}
-                render={({ field }) => (
-                  <TextField
-                    {...field}
+              <TextField
+                select
+                label="Nhân viên y tế"
+                required
+                fullWidth
+                defaultValue=""
+                {...register('user_id', {
+                  valueAsNumber: true
+                })}
+                error={Boolean(errors.user_id)}
+                helperText={errors.user_id?.message}
+              >
+                <MenuItem value="">
+                  <em>Chọn nhân viên y tế</em>
+                </MenuItem>
 
-                    select
+                {staff.map((user) => (
+                  <MenuItem key={user.user_id} value={user.user_id}>
+                    {user.fullName}
+                  </MenuItem>
+                ))}
+              </TextField>
 
-                    fullWidth
+              {/* LOCATION */}
 
-                    required
+              <TextField
+                select
+                label="Địa điểm tiêm"
+                required
+                fullWidth
+                defaultValue=""
+                {...register('location_id', {
+                  valueAsNumber: true
+                })}
+                error={Boolean(errors.location_id)}
+                helperText={errors.location_id?.message}
+              >
+                <MenuItem value="">
+                  <em>Chọn địa điểm tiêm</em>
+                </MenuItem>
 
-                    label="Nhân viên y tế"
-
-                    error={Boolean(errors.medicalStaff)}
-
-                    helperText={errors.medicalStaff?.message}
+                {locations.map((location) => (
+                  <MenuItem
+                    key={location.location_id}
+                    value={location.location_id}
                   >
-                    <MenuItem value="">
-                      <em>Chọn nhân viên y tế</em>
-                    </MenuItem>
-
-                    <MenuItem value="staff-1">Nguyễn Thị Lan</MenuItem>
-
-                    <MenuItem value="staff-2">Trần Văn Minh</MenuItem>
-
-                    <MenuItem value="staff-3">Lê Thị Hoa</MenuItem>
-                  </TextField>
-                )}
-              />
+                    {location.locationName} - {location.address}
+                  </MenuItem>
+                ))}
+              </TextField>
 
               {/* ========================================= */}
               {/* NOTE */}
               {/* ========================================= */}
 
-              <Controller
-                name="note"
-                control={control}
-                render={({ field }) => (
-                  <TextField
-                    {...field}
-
-                    fullWidth
-
-                    multiline
-
-                    minRows={3}
-
-                    maxRows={5}
-
-                    label="Ghi chú"
-
-                    placeholder="Nhập ghi chú nếu có..."
-
-                    error={Boolean(errors.note)}
-
-                    helperText={
-                      errors.note?.message || `${note.length}/500 ký tự`
-                    }
-
-                    slotProps={{
-                      htmlInput: {
-                        maxLength: 500
-                      }
-                    }}
-
-                    sx={{
-                      gridColumn: {
-                        xs: 'auto',
-
-                        md: '1 / -1'
-                      }
-                    }}
-                  />
-                )}
+              <TextField
+                label="Ghi chú"
+                fullWidth
+                multiline
+                minRows={3}
+                maxRows={5}
+                placeholder="Nhập ghi chú nếu có..."
+                {...register('note')}
+                error={Boolean(errors.note)}
+                helperText={errors.note?.message}
+                slotProps={{
+                  htmlInput: {
+                    maxLength: 500
+                  }
+                }}
+                sx={{
+                  gridColumn: {
+                    xs: 'auto',
+                    md: '1 / -1'
+                  }
+                }}
               />
             </Box>
 
-            {/* =========================================== */}
-            {/* DIVIDER */}
-            {/* =========================================== */}
-
             <Divider />
 
-            {/* =========================================== */}
+            {/* ================================================= */}
             {/* ACTION */}
-            {/* =========================================== */}
+            {/* ================================================= */}
 
             <Box
               sx={{
                 px: 3,
-
                 py: 2,
-
                 display: 'flex',
-
                 justifyContent: 'flex-end',
-
                 alignItems: 'center',
-
                 gap: 1.5
               }}
             >
               <Button
                 type="button"
-
                 variant="outlined"
-
-                startIcon={<RestartAltOutlinedIcon />}
-
-                onClick={handleReset}
-
+                onClick={handleBack}
+                disabled={isSubmitting}
                 sx={{
-                  minWidth: 120,
-
+                  minWidth: 110,
                   height: 40,
-
                   textTransform: 'none'
                 }}
               >
-                Làm mới
+                Hủy
               </Button>
 
               <Button
                 type="submit"
-
                 variant="contained"
-
                 disabled={isSubmitting}
-
                 startIcon={<SaveOutlinedIcon />}
-
                 sx={{
                   minWidth: 140,
-
                   height: 40,
-
                   textTransform: 'none',
-
                   fontWeight: 600
                 }}
               >
@@ -712,4 +557,4 @@ const Schedule = () => {
   )
 }
 
-export default Schedule
+export default ScheduleCreate

@@ -5,7 +5,6 @@ import {
   Button,
   Chip,
   FormControl,
-  IconButton,
   InputAdornment,
   MenuItem,
   Paper,
@@ -19,195 +18,43 @@ import {
   TableRow,
   TableSortLabel,
   TextField,
-  Tooltip,
   Typography
 } from '@mui/material'
 
+import { Dialog, DialogContent } from '@mui/material'
+
 import AddOutlinedIcon from '@mui/icons-material/AddOutlined'
-import DeleteOutlineOutlinedIcon from '@mui/icons-material/DeleteOutlineOutlined'
 import EditOutlinedIcon from '@mui/icons-material/EditOutlined'
 import PersonOutlineOutlinedIcon from '@mui/icons-material/PersonOutlineOutlined'
 import SearchOutlinedIcon from '@mui/icons-material/SearchOutlined'
 import VisibilityOutlinedIcon from '@mui/icons-material/VisibilityOutlined'
+import { useEffect, useMemo, useState } from 'react'
 
-import type { ChipProps } from '@mui/material'
-import { useRouter } from 'next/navigation'
-import { useMemo, useState } from 'react'
+import { useRouter, useSearchParams } from 'next/navigation'
 
-type UserRole = 'admin' | 'doctor' | 'nurse' | 'staff'
-
-type UserStatus = 'active' | 'inactive'
-
-type User = {
-  id: number
-  username: string
-  fullName: string
-  identityNumber: string
-  address: string
-  role: UserRole
-  status: UserStatus
-}
+import {
+  activeUserAPI,
+  getUsers,
+  getRoles,
+  type User,
+  type Role
+} from '@/services/user.service'
+import { toast } from 'react-toastify'
 
 type Order = 'asc' | 'desc'
 
-type OrderBy =
-  'username' | 'fullName' | 'identityNumber' | 'address' | 'role' | 'status'
+type OrderBy = 'email' | 'fullName' | 'cccd' | 'address' | 'role' | 'status'
 
-type RoleFilter = 'all' | UserRole
-
-type RoleConfig = {
-  label: string
-  color: ChipProps['color']
-}
-
-type StatusConfig = {
-  label: string
-  color: ChipProps['color']
-}
-
-const roleMap: Record<UserRole, RoleConfig> = {
-  admin: {
-    label: 'Quản trị viên',
-    color: 'error'
-  },
-  doctor: {
-    label: 'Bác sĩ',
-    color: 'primary'
-  },
-  nurse: {
-    label: 'Điều dưỡng',
-    color: 'success'
-  },
-  staff: {
-    label: 'Nhân viên',
-    color: 'default'
-  }
-}
-
-const statusMap: Record<UserStatus, StatusConfig> = {
-  active: {
-    label: 'Đang hoạt động',
-    color: 'success'
-  },
-  inactive: {
-    label: 'Ngừng hoạt động',
-    color: 'default'
-  }
-}
-
-const initialUsers: User[] = [
-  {
-    id: 1,
-    username: 'admin',
-    fullName: 'Nguyễn Văn Quản',
-    identityNumber: '048090001234',
-    address: 'Hải Châu, Đà Nẵng',
-    role: 'admin',
-    status: 'active'
-  },
-  {
-    id: 2,
-    username: 'nguyenvanminh',
-    fullName: 'Nguyễn Văn Minh',
-    identityNumber: '048085002345',
-    address: 'Sơn Trà, Đà Nẵng',
-    role: 'doctor',
-    status: 'active'
-  },
-  {
-    id: 3,
-    username: 'tranthilan',
-    fullName: 'Trần Thị Lan',
-    identityNumber: '048092003456',
-    address: 'Thanh Khê, Đà Nẵng',
-    role: 'nurse',
-    status: 'active'
-  },
-  {
-    id: 4,
-    username: 'lethihoa',
-    fullName: 'Lê Thị Hoa',
-    identityNumber: '048094004567',
-    address: 'Liên Chiểu, Đà Nẵng',
-    role: 'nurse',
-    status: 'active'
-  },
-  {
-    id: 5,
-    username: 'phamvanhung',
-    fullName: 'Phạm Văn Hùng',
-    identityNumber: '048088005678',
-    address: 'Cẩm Lệ, Đà Nẵng',
-    role: 'staff',
-    status: 'active'
-  },
-  {
-    id: 6,
-    username: 'vothimai',
-    fullName: 'Võ Thị Mai',
-    identityNumber: '048096006789',
-    address: 'Ngũ Hành Sơn, Đà Nẵng',
-    role: 'staff',
-    status: 'active'
-  },
-  {
-    id: 7,
-    username: 'hoangvanan',
-    fullName: 'Hoàng Văn An',
-    identityNumber: '048087007890',
-    address: 'Hải Châu, Đà Nẵng',
-    role: 'doctor',
-    status: 'active'
-  },
-  {
-    id: 8,
-    username: 'dangthithu',
-    fullName: 'Đặng Thị Thu',
-    identityNumber: '048093008901',
-    address: 'Sơn Trà, Đà Nẵng',
-    role: 'nurse',
-    status: 'inactive'
-  },
-  {
-    id: 9,
-    username: 'buivanphuc',
-    fullName: 'Bùi Văn Phúc',
-    identityNumber: '048089009012',
-    address: 'Thanh Khê, Đà Nẵng',
-    role: 'staff',
-    status: 'active'
-  },
-  {
-    id: 10,
-    username: 'nguyenthihuong',
-    fullName: 'Nguyễn Thị Hương',
-    identityNumber: '048095010123',
-    address: 'Cẩm Lệ, Đà Nẵng',
-    role: 'nurse',
-    status: 'active'
-  },
-  {
-    id: 11,
-    username: 'tranvanhai',
-    fullName: 'Trần Văn Hải',
-    identityNumber: '048086011234',
-    address: 'Liên Chiểu, Đà Nẵng',
-    role: 'doctor',
-    status: 'active'
-  },
-  {
-    id: 12,
-    username: 'lequocbao',
-    fullName: 'Lê Quốc Bảo',
-    identityNumber: '048091012345',
-    address: 'Hải Châu, Đà Nẵng',
-    role: 'staff',
-    status: 'inactive'
-  }
-]
+type RoleFilter = 'all' | number
 
 const UserList = () => {
   const router = useRouter()
+
+  const [users, setUsers] = useState<User[]>([])
+  const [roles, setRoles] = useState<Role[]>([])
+
+  const [activeUser, setActiveUser] = useState<User | null>(null)
+  const [activeLoading, setActiveLoading] = useState(false)
 
   const [search, setSearch] = useState('')
   const [roleFilter, setRoleFilter] = useState<RoleFilter>('all')
@@ -215,8 +62,86 @@ const UserList = () => {
   const [order, setOrder] = useState<Order>('asc')
   const [orderBy, setOrderBy] = useState<OrderBy>('fullName')
 
-  const [page, setPage] = useState(0)
-  const [rowsPerPage, setRowsPerPage] = useState(10)
+  const searchParams = useSearchParams()
+
+  const pageFromUrl = Number(searchParams.get('page') || '1')
+
+  const [page, setPage] = useState(Math.max(pageFromUrl - 1, 0))
+  const [rowsPerPage, setRowsPerPage] = useState(5)
+
+  // =========================
+  // GET USERS
+  // =========================
+
+  useEffect(() => {
+    const fetchData = async () => {
+      try {
+        const [usersData, rolesData] = await Promise.all([
+          getUsers(),
+          getRoles()
+        ])
+
+        setUsers(usersData)
+
+        // Không lấy vai trò Bệnh nhân
+        setRoles(rolesData.filter((role) => role.role_code !== 5))
+      } catch (error) {
+        console.error('Lỗi lấy dữ liệu:', error)
+      }
+    }
+
+    fetchData()
+  }, [])
+
+  const handleOpenStatusConfirm = (user: User) => {
+    setActiveUser(user)
+  }
+
+  const handleCloseStatusConfirm = () => {
+    if (activeLoading) return
+
+    setActiveUser(null)
+  }
+
+  const handleConfirmActiveUser = async () => {
+    if (!activeUser) return
+
+    try {
+      setActiveLoading(true)
+
+      const newStatus = !activeUser.isActive
+
+      await activeUserAPI(activeUser.user_id, newStatus)
+
+      setUsers((currentUsers) =>
+        currentUsers.map((user) =>
+          user.user_id === activeUser.user_id
+            ? { ...user, isActive: newStatus }
+            : user
+        )
+      )
+
+      toast.success(
+        newStatus
+          ? 'Kích hoạt tài khoản thành công'
+          : 'Ngừng hoạt động tài khoản thành công'
+      )
+
+      setActiveUser(null)
+    } catch {
+      toast.error(
+        activeUser.isActive
+          ? 'Ngừng hoạt động tài khoản thất bại'
+          : 'Kích hoạt tài khoản thất bại'
+      )
+    } finally {
+      setActiveLoading(false)
+    }
+  }
+
+  // =========================
+  // SORT
+  // =========================
 
   const handleSort = (property: OrderBy) => {
     const isAsc = orderBy === property && order === 'asc'
@@ -226,18 +151,23 @@ const UserList = () => {
     setPage(0)
   }
 
+  // =========================
+  // FILTER + SEARCH + SORT
+  // =========================
+
   const filteredUsers = useMemo(() => {
     const keyword = search.trim().toLowerCase()
 
-    const filtered = initialUsers.filter((user) => {
+    const filtered = users.filter((user) => {
       const matchesSearch =
         !keyword ||
         user.fullName.toLowerCase().includes(keyword) ||
-        user.username.toLowerCase().includes(keyword) ||
-        user.identityNumber.includes(keyword) ||
-        user.address.toLowerCase().includes(keyword)
+        (user.email?.toLowerCase().includes(keyword) ?? false) ||
+        (user.cccd?.includes(keyword) ?? false) ||
+        (user.address?.toLowerCase().includes(keyword) ?? false)
 
-      const matchesRole = roleFilter === 'all' || user.role === roleFilter
+      const matchesRole =
+        roleFilter === 'all' || user.role?.role_code === roleFilter
 
       return matchesSearch && matchesRole
     })
@@ -247,9 +177,9 @@ const UserList = () => {
       let valueB = ''
 
       switch (orderBy) {
-        case 'username':
-          valueA = a.username.toLowerCase()
-          valueB = b.username.toLowerCase()
+        case 'email':
+          valueA = a.email?.toLowerCase() || ''
+          valueB = b.email?.toLowerCase() || ''
           break
 
         case 'fullName':
@@ -257,24 +187,24 @@ const UserList = () => {
           valueB = b.fullName.toLowerCase()
           break
 
-        case 'identityNumber':
-          valueA = a.identityNumber
-          valueB = b.identityNumber
+        case 'cccd':
+          valueA = a.cccd || ''
+          valueB = b.cccd || ''
           break
 
         case 'address':
-          valueA = a.address.toLowerCase()
-          valueB = b.address.toLowerCase()
+          valueA = a.address?.toLowerCase() || ''
+          valueB = b.address?.toLowerCase() || ''
           break
 
         case 'role':
-          valueA = roleMap[a.role].label.toLowerCase()
-          valueB = roleMap[b.role].label.toLowerCase()
+          valueA = a.role?.role_name?.toLowerCase() || ''
+          valueB = b.role?.role_name?.toLowerCase() || ''
           break
 
         case 'status':
-          valueA = statusMap[a.status].label.toLowerCase()
-          valueB = statusMap[b.status].label.toLowerCase()
+          valueA = a.isActive ? 'Đang hoạt động' : 'Ngừng hoạt động'
+          valueB = b.isActive ? 'Đang hoạt động' : 'Ngừng hoạt động'
           break
       }
 
@@ -282,7 +212,11 @@ const UserList = () => {
 
       return order === 'asc' ? result : -result
     })
-  }, [search, roleFilter, order, orderBy])
+  }, [users, search, roleFilter, order, orderBy])
+
+  // =========================
+  // PAGINATION
+  // =========================
 
   const paginatedUsers = useMemo(() => {
     const start = page * rowsPerPage
@@ -290,11 +224,10 @@ const UserList = () => {
     return filteredUsers.slice(start, start + rowsPerPage)
   }, [filteredUsers, page, rowsPerPage])
 
-  const handleChangePage = (
-    _event: React.MouseEvent<HTMLButtonElement> | null,
-    newPage: number
-  ) => {
+  const handleChangePage = (event: unknown, newPage: number) => {
     setPage(newPage)
+
+    router.replace(`/users?page=${newPage + 1}`)
   }
 
   const handleChangeRowsPerPage = (
@@ -338,6 +271,7 @@ const UserList = () => {
           }}
         >
           {/* HEADER */}
+
           <Box
             sx={{
               px: 2.5,
@@ -407,11 +341,12 @@ const UserList = () => {
                 fontWeight: 600
               }}
             >
-              Tạo tài khoản
+              Thêm Nhân Viên
             </Button>
           </Box>
 
           {/* TOOLBAR */}
+
           <Box
             sx={{
               px: 2.5,
@@ -451,7 +386,7 @@ const UserList = () => {
                   setSearch(event.target.value)
                   setPage(0)
                 }}
-                placeholder="Tìm tên, username, CCCD..."
+                placeholder="Tìm tên, email, CCCD..."
                 sx={{
                   width: {
                     xs: '100%',
@@ -480,29 +415,26 @@ const UserList = () => {
                 <Select
                   value={roleFilter}
                   onChange={(event) => {
-                    setRoleFilter(event.target.value as RoleFilter)
+                    const value = event.target.value
+
+                    setRoleFilter(value === 'all' ? 'all' : Number(value))
                     setPage(0)
                   }}
                 >
-                  <MenuItem value="all">Tất cả phân quyền</MenuItem>
+                  <MenuItem value="all">Tất cả vai trò</MenuItem>
 
-                  <MenuItem value="admin">Quản trị viên</MenuItem>
-
-                  <MenuItem value="doctor">Bác sĩ</MenuItem>
-
-                  <MenuItem value="nurse">Điều dưỡng</MenuItem>
-
-                  <MenuItem value="staff">Nhân viên</MenuItem>
+                  {roles.map((role) => (
+                    <MenuItem key={role.role_id} value={role.role_code}>
+                      {role.role_name}
+                    </MenuItem>
+                  ))}
                 </Select>
               </FormControl>
             </Box>
-
-            <Typography variant="body2" color="text.secondary">
-              {filteredUsers.length} nhân viên
-            </Typography>
           </Box>
 
           {/* TABLE */}
+
           <TableContainer
             sx={{
               width: '100%',
@@ -529,17 +461,21 @@ const UserList = () => {
                     STT
                   </TableCell>
 
+                  {/* EMAIL */}
+
                   <TableCell>
                     <TableSortLabel
-                      active={orderBy === 'username'}
-                      direction={orderBy === 'username' ? order : 'asc'}
-                      onClick={() => handleSort('username')}
+                      active={orderBy === 'email'}
+                      direction={orderBy === 'email' ? order : 'asc'}
+                      onClick={() => handleSort('email')}
                     >
                       <Typography component="span" sx={{ fontWeight: 600 }}>
-                        Tên đăng nhập
+                        Email
                       </Typography>
                     </TableSortLabel>
                   </TableCell>
+
+                  {/* FULL NAME */}
 
                   <TableCell>
                     <TableSortLabel
@@ -553,17 +489,21 @@ const UserList = () => {
                     </TableSortLabel>
                   </TableCell>
 
+                  {/* CCCD */}
+
                   <TableCell>
                     <TableSortLabel
-                      active={orderBy === 'identityNumber'}
-                      direction={orderBy === 'identityNumber' ? order : 'asc'}
-                      onClick={() => handleSort('identityNumber')}
+                      active={orderBy === 'cccd'}
+                      direction={orderBy === 'cccd' ? order : 'asc'}
+                      onClick={() => handleSort('cccd')}
                     >
                       <Typography component="span" sx={{ fontWeight: 600 }}>
                         CCCD
                       </Typography>
                     </TableSortLabel>
                   </TableCell>
+
+                  {/* ADDRESS */}
 
                   <TableCell>
                     <TableSortLabel
@@ -577,6 +517,8 @@ const UserList = () => {
                     </TableSortLabel>
                   </TableCell>
 
+                  {/* ROLE */}
+
                   <TableCell>
                     <TableSortLabel
                       active={orderBy === 'role'}
@@ -584,10 +526,12 @@ const UserList = () => {
                       onClick={() => handleSort('role')}
                     >
                       <Typography component="span" sx={{ fontWeight: 600 }}>
-                        Phân quyền
+                        Vai trò
                       </Typography>
                     </TableSortLabel>
                   </TableCell>
+
+                  {/* STATUS */}
 
                   <TableCell>
                     <TableSortLabel
@@ -614,108 +558,134 @@ const UserList = () => {
               </TableHead>
 
               <TableBody>
-                {paginatedUsers.map((user, index) => {
-                  const role = roleMap[user.role]
-                  const status = statusMap[user.status]
+                {paginatedUsers.map((user, index) => (
+                  <TableRow key={user.user_id} hover>
+                    {/* STT */}
 
-                  return (
-                    <TableRow key={user.id} hover>
-                      <TableCell>{page * rowsPerPage + index + 1}</TableCell>
+                    <TableCell>{page * rowsPerPage + index + 1}</TableCell>
 
-                      <TableCell
+                    {/* EMAIL */}
+
+                    <TableCell
+                      sx={{
+                        whiteSpace: 'nowrap'
+                      }}
+                    >
+                      {user.email || '-'}
+                    </TableCell>
+
+                    {/* FULL NAME */}
+
+                    <TableCell
+                      sx={{
+                        fontWeight: 500,
+                        whiteSpace: 'nowrap'
+                      }}
+                    >
+                      {user.fullName}
+                    </TableCell>
+
+                    {/* CCCD */}
+
+                    <TableCell
+                      sx={{
+                        whiteSpace: 'nowrap'
+                      }}
+                    >
+                      {user.cccd || '-'}
+                    </TableCell>
+
+                    {/* ADDRESS */}
+
+                    <TableCell>{user.address || '-'}</TableCell>
+
+                    {/* ROLE */}
+
+                    <TableCell>
+                      <Chip
+                        label={user.role?.role_name || '-'}
+                        color={
+                          user.role?.role_code === 1
+                            ? 'error'
+                            : user.role?.role_code === 2
+                              ? 'primary'
+                              : user.role?.role_code === 3
+                                ? 'success'
+                                : 'default'
+                        }
+                        size="small"
+                        variant="outlined"
+                      />
+                    </TableCell>
+
+                    {/* STATUS */}
+
+                    <TableCell>
+                      <Chip
+                        label={
+                          user.isActive ? 'Đang hoạt động' : 'Ngừng hoạt động'
+                        }
+                        color={user.isActive ? 'success' : 'default'}
+                        size="small"
+                        clickable
+                        onClick={() => handleOpenStatusConfirm(user)}
+                      />
+                    </TableCell>
+
+                    {/* ACTION */}
+
+                    <TableCell align="center">
+                      <Box
                         sx={{
-                          fontWeight: 500,
-                          whiteSpace: 'nowrap'
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          gap: 1
                         }}
                       >
-                        {user.username}
-                      </TableCell>
-
-                      <TableCell
-                        sx={{
-                          fontWeight: 500,
-                          whiteSpace: 'nowrap'
-                        }}
-                      >
-                        {user.fullName}
-                      </TableCell>
-
-                      <TableCell
-                        sx={{
-                          whiteSpace: 'nowrap'
-                        }}
-                      >
-                        {user.identityNumber}
-                      </TableCell>
-
-                      <TableCell>{user.address}</TableCell>
-
-                      <TableCell>
-                        <Chip
-                          label={role.label}
-                          color={role.color}
+                        <Button
                           size="small"
                           variant="outlined"
-                        />
-                      </TableCell>
-
-                      <TableCell>
-                        <Chip
-                          label={status.label}
-                          color={status.color}
-                          size="small"
-                        />
-                      </TableCell>
-
-                      <TableCell align="center">
-                        <Box
+                          startIcon={<VisibilityOutlinedIcon />}
+                          onClick={() => {
+                            router.push(
+                              `/users/detail/${user.user_id}?currentPage=${page + 1}`
+                            )
+                          }}
                           sx={{
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'center',
-                            gap: 1
+                            whiteSpace: 'nowrap',
+                            textTransform: 'none',
+                            color: 'text.secondary',
+                            borderColor: 'divider',
+                            '&:hover': {
+                              borderColor: 'text.secondary',
+                              bgcolor: 'action.hover'
+                            }
                           }}
                         >
-                          {/* EDIT */}
-
-                          <Button
-                            size="small"
-                            variant="outlined"
-                            color="primary"
-                            startIcon={<EditOutlinedIcon />}
-                            onClick={() => {
-                              router.push(`/users/edit/${user.id}`)
-                            }}
-                            sx={{
-                              whiteSpace: 'nowrap',
-                              textTransform: 'none'
-                            }}
-                          >
-                            Sửa
-                          </Button>
-
-                          {/* DELETE */}
-
-                          <Button
-                            size="small"
-                            variant="outlined"
-                            color="error"
-                            startIcon={<DeleteOutlineOutlinedIcon />}
-                            onClick={() => {
-                              router.push(`/users/${user.id}`)
-                            }}
-                            sx={{
-                              whiteSpace: 'nowrap',
-                              textTransform: 'none'
-                            }}
-                          >
-                            Xóa
-                          </Button>
-                        </Box>
-                      </TableCell>
-                    </TableRow>
-                  )
-                })}
+                          Xem
+                        </Button>
+                        <Button
+                          size="small"
+                          variant="outlined"
+                          color="primary"
+                          startIcon={<EditOutlinedIcon />}
+                          onClick={() => {
+                            router.push(
+                              `/users/edit/${user.user_id}?currentPage=${page + 1}`
+                            )
+                          }}
+                          sx={{
+                            whiteSpace: 'nowrap',
+                            textTransform: 'none'
+                          }}
+                        >
+                          Sửa
+                        </Button>
+                      </Box>
+                    </TableCell>
+                  </TableRow>
+                ))}
 
                 {paginatedUsers.length === 0 && (
                   <TableRow>
@@ -733,7 +703,7 @@ const UserList = () => {
                           fontWeight: 600
                         }}
                       >
-                        Không tìm thấy nhân viên
+                        Không tìm thấy người dùng
                       </Typography>
 
                       <Typography variant="body2" color="text.secondary">
@@ -747,6 +717,7 @@ const UserList = () => {
           </TableContainer>
 
           {/* PAGINATION */}
+
           <Box
             sx={{
               flexShrink: 0,
@@ -764,10 +735,136 @@ const UserList = () => {
               onRowsPerPageChange={handleChangeRowsPerPage}
               rowsPerPageOptions={[5, 10, 20, 50]}
               labelRowsPerPage="Số dòng mỗi trang:"
-              labelDisplayedRows={({ from, to, count }) =>
-                `${from}-${to} / ${count}`
-              }
+              labelDisplayedRows={() => {
+                const totalPages = Math.max(
+                  1,
+                  Math.ceil(filteredUsers.length / rowsPerPage)
+                )
+
+                return `Trang ${page + 1} / ${totalPages}`
+              }}
             />
+            <Dialog
+              open={Boolean(activeUser)}
+              onClose={handleCloseStatusConfirm}
+              maxWidth="xs"
+              fullWidth
+              slotProps={{
+                paper: {
+                  sx: {
+                    borderRadius: 2.5,
+                    maxWidth: 420,
+                    m: 2,
+                    boxShadow: '0 12px 32px rgba(0,0,0,0.16)'
+                  }
+                }
+              }}
+            >
+              <DialogContent
+                sx={{
+                  p: 3
+                }}
+              >
+                <Typography
+                  sx={{
+                    fontSize: 18,
+                    fontWeight: 700,
+                    mb: 1
+                  }}
+                >
+                  {activeUser?.isActive
+                    ? 'Ngừng hoạt động tài khoản?'
+                    : 'Kích hoạt tài khoản?'}
+                </Typography>
+
+                <Typography
+                  sx={{
+                    fontSize: 14,
+                    lineHeight: 1.6,
+                    color: 'text.secondary'
+                  }}
+                >
+                  {activeUser?.isActive ? (
+                    <>
+                      Tài khoản của{' '}
+                      <Box
+                        component="span"
+                        sx={{
+                          fontWeight: 600,
+                          color: 'text.primary'
+                        }}
+                      >
+                        {activeUser?.fullName}
+                      </Box>{' '}
+                      sẽ không thể đăng nhập sau khi ngừng hoạt động.
+                    </>
+                  ) : (
+                    <>
+                      Tài khoản của{' '}
+                      <Box
+                        component="span"
+                        sx={{
+                          fontWeight: 600,
+                          color: 'text.primary'
+                        }}
+                      >
+                        {activeUser?.fullName}
+                      </Box>{' '}
+                      sẽ có thể đăng nhập lại sau khi kích hoạt.
+                    </>
+                  )}
+                </Typography>
+
+                <Box
+                  sx={{
+                    display: 'flex',
+                    justifyContent: 'flex-end',
+                    gap: 1,
+                    mt: 3
+                  }}
+                >
+                  <Button
+                    onClick={handleCloseStatusConfirm}
+                    disabled={activeLoading}
+                    variant="outlined"
+                    color="inherit"
+                    sx={{
+                      height: 38,
+                      px: 2.5,
+                      borderRadius: 2,
+                      textTransform: 'none',
+                      fontWeight: 600
+                    }}
+                  >
+                    Hủy
+                  </Button>
+
+                  <Button
+                    onClick={handleConfirmActiveUser}
+                    disabled={activeLoading}
+                    variant="contained"
+                    color={activeUser?.isActive ? 'error' : 'success'}
+                    sx={{
+                      height: 38,
+                      px: 2.5,
+                      borderRadius: 2,
+                      textTransform: 'none',
+                      fontWeight: 600,
+                      boxShadow: 'none',
+                      '&:hover': {
+                        boxShadow: 'none'
+                      }
+                    }}
+                  >
+                    {activeLoading
+                      ? 'Đang xử lý...'
+                      : activeUser?.isActive
+                        ? 'Ngừng hoạt động'
+                        : 'Kích hoạt'}
+                  </Button>
+                </Box>
+              </DialogContent>
+            </Dialog>
           </Box>
         </Paper>
       </Box>

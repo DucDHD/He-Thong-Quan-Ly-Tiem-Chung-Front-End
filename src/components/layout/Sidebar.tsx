@@ -8,7 +8,7 @@ import Inventory2OutlinedIcon from '@mui/icons-material/Inventory2Outlined'
 import MedicalServicesOutlinedIcon from '@mui/icons-material/MedicalServicesOutlined'
 import PeopleAltOutlinedIcon from '@mui/icons-material/PeopleAltOutlined'
 import CoronavirusOutlinedIcon from '@mui/icons-material/CoronavirusOutlined'
-
+import VaccinesOutlinedIcon from '@mui/icons-material/CoronavirusOutlined'
 import VaccinesRoundedIcon from '@mui/icons-material/VaccinesRounded'
 import { Divider, Stack } from '@mui/material'
 import { useTheme } from '@mui/material/styles'
@@ -17,7 +17,6 @@ import { useState } from 'react'
 import Collapse from '@mui/material/Collapse'
 import ExpandLessIcon from '@mui/icons-material/ExpandLess'
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore'
-
 import {
   Box,
   List,
@@ -26,14 +25,38 @@ import {
   ListItemText,
   Typography
 } from '@mui/material'
-
 import { usePathname, useRouter } from 'next/navigation'
+import { UserRole } from '@/utils/user-role'
+import { useAuth } from '@/contexts/AuthContext'
 
-const menuItems = [
+type MenuItem = {
+  label: string
+  path?: string
+  icon?: React.ReactNode
+  roles?: UserRole[]
+  children?: MenuItem[]
+}
+
+const menuItems: MenuItem[] = [
   {
     label: 'Tổng quan',
     path: '/dashboard',
     icon: <DashboardRoundedIcon />
+  },
+  {
+    label: 'Quản Lý Vaccine',
+    icon: <VaccinesOutlinedIcon />,
+    roles: [UserRole.ADMIN],
+    children: [
+      {
+        label: 'Thêm Vaccine',
+        path: '/vaccines/create'
+      },
+      {
+        label: 'Danh Sách Vaccine',
+        path: '/vaccines/'
+      }
+    ]
   },
   {
     label: 'Lịch tiêm chủng',
@@ -41,7 +64,8 @@ const menuItems = [
     children: [
       {
         label: 'Đăng ký lịch tiêm',
-        path: '/vaccination-schedules/create'
+        path: '/vaccination-schedules/create',
+        roles: [UserRole.ADMIN, UserRole.DOCTOR, UserRole.NURSE]
       },
       {
         label: 'Danh Sách Lịch Tiêm',
@@ -52,6 +76,7 @@ const menuItems = [
   {
     label: 'Nhân viên y tế',
     icon: <MedicalServicesOutlinedIcon />,
+    roles: [UserRole.ADMIN],
     children: [
       {
         label: 'Đăng Ký Nhân Viên',
@@ -131,7 +156,6 @@ const menuItems = [
       }
     ]
   },
-
   {
     label: 'Chăm sóc khách hàng',
     icon: <PeopleAltOutlinedIcon />,
@@ -158,6 +182,7 @@ function Sidebar() {
   const router = useRouter()
   const theme = useTheme()
   const SIDEBAR_WIDTH = theme.layout.sidebarWidth
+  const { user, isAdmin, isDoctor, isNurse } = useAuth()
 
   const [openMenu, setOpenMenu] = useState<string | null>(null)
 
@@ -251,110 +276,137 @@ function Sidebar() {
         </Typography>
 
         <List disablePadding>
-          {menuItems.map((item) => {
-            const hasChildren = Boolean(item.children?.length)
+          {menuItems
+            .filter((item) => {
+              // Menu không khai báo roles → tất cả đều được thấy
+              if (!item.roles) {
+                return true
+              }
 
-            const active = hasChildren
-              ? item.children?.some((child) => pathname === child.path)
-              : pathname === item.path
+              // Chưa lấy được thông tin user → ẩn menu có phân quyền
+              if (!user?.role?.role_code) {
+                return false
+              }
 
-            const open = openMenu === item.label
+              // Kiểm tra role hiện tại có được phép hay không
+              return item.roles.includes(user.role.role_code)
+            })
+            .map((item) => {
+              const hasChildren = Boolean(item.children?.length)
 
-            return (
-              <Box key={item.label}>
-                <ListItemButton
-                  onClick={() => {
-                    if (hasChildren) {
-                      setOpenMenu(open ? null : item.label)
-                    } else if (item.path) {
-                      router.push(item.path)
-                    }
-                  }}
-                  sx={{
-                    minHeight: 48,
-                    mb: 0.7,
-                    px: 1.5,
-                    borderRadius: 2.5,
-                    color: active ? '#fff' : '#a9bbcb',
-                    bgcolor: active
-                      ? 'rgba(47, 128, 237, 0.22)'
-                      : 'transparent',
-                    '&:hover': {
-                      bgcolor: active
-                        ? 'rgba(47, 128, 237, 0.28)'
-                        : 'rgba(255, 255, 255, 0.06)'
-                    }
-                  }}
-                >
-                  <ListItemIcon
-                    sx={{
-                      minWidth: 40,
-                      color: active ? '#5da2ff' : '#8ca2b5'
-                    }}
-                  >
-                    {item.icon}
-                  </ListItemIcon>
+              const active = hasChildren
+                ? item.children?.some((child) => pathname === child.path)
+                : pathname === item.path
 
-                  <ListItemText
-                    primary={item.label}
-                    sx={{
-                      '& .MuiListItemText-primary': {
-                        fontSize: 14,
-                        fontWeight: active ? 600 : 400
+              const open = openMenu === item.label
+
+              return (
+                <Box key={item.label}>
+                  <ListItemButton
+                    onClick={() => {
+                      if (hasChildren) {
+                        setOpenMenu(open ? null : item.label)
+                      } else if (item.path) {
+                        router.push(item.path)
                       }
                     }}
-                  />
+                    sx={{
+                      minHeight: 48,
+                      mb: 0.7,
+                      px: 1.5,
+                      borderRadius: 2.5,
+                      color: active ? '#fff' : '#a9bbcb',
+                      bgcolor: active
+                        ? 'rgba(47, 128, 237, 0.22)'
+                        : 'transparent',
+                      '&:hover': {
+                        bgcolor: active
+                          ? 'rgba(47, 128, 237, 0.28)'
+                          : 'rgba(255, 255, 255, 0.06)'
+                      }
+                    }}
+                  >
+                    <ListItemIcon
+                      sx={{
+                        minWidth: 40,
+                        color: active ? '#5da2ff' : '#8ca2b5'
+                      }}
+                    >
+                      {item.icon}
+                    </ListItemIcon>
 
-                  {hasChildren &&
-                    (open ? (
-                      <ExpandLessIcon fontSize="small" />
-                    ) : (
-                      <ExpandMoreIcon fontSize="small" />
-                    ))}
-                </ListItemButton>
+                    <ListItemText
+                      primary={item.label}
+                      sx={{
+                        '& .MuiListItemText-primary': {
+                          fontSize: 14,
+                          fontWeight: active ? 600 : 400
+                        }
+                      }}
+                    />
 
-                {hasChildren && (
-                  <Collapse in={open} timeout="auto" unmountOnExit>
-                    <List disablePadding>
-                      {item.children?.map((child) => {
-                        const childActive = pathname === child.path
+                    {hasChildren &&
+                      (open ? (
+                        <ExpandLessIcon fontSize="small" />
+                      ) : (
+                        <ExpandMoreIcon fontSize="small" />
+                      ))}
+                  </ListItemButton>
 
-                        return (
-                          <ListItemButton
-                            key={child.path}
-                            onClick={() => router.push(child.path)}
-                            sx={{
-                              minHeight: 40,
-                              mb: 0.5,
-                              pl: 6.5,
-                              borderRadius: 2,
-                              color: childActive ? '#fff' : '#8ca2b5',
-                              bgcolor: childActive
-                                ? 'rgba(47, 128, 237, 0.15)'
-                                : 'transparent',
-                              '&:hover': {
-                                bgcolor: 'rgba(255, 255, 255, 0.06)'
-                              }
-                            }}
-                          >
-                            <ListItemText
-                              primary={child.label}
-                              sx={{
-                                '& .MuiListItemText-primary': {
-                                  fontSize: 13,
-                                  fontWeight: childActive ? 600 : 400
-                                }
-                              }}
-                            />
-                          </ListItemButton>
-                        )
-                      })}
-                    </List>
-                  </Collapse>
-                )}
-              </Box>
-            )
-          })}
+                  {hasChildren && (
+                    <Collapse in={open} timeout="auto" unmountOnExit>
+                      <List disablePadding>
+                        {item.children
+                          ?.filter((child) => {
+                            if (!child.roles) return true
+
+                            if (!user?.role?.role_code) return false
+
+                            return child.roles.includes(user.role.role_code)
+                          })
+                          .map((child) => {
+                            const childActive = pathname === child.path
+
+                            return (
+                              <ListItemButton
+                                key={child.path}
+                                onClick={() => {
+                                  if (child.path) {
+                                    router.push(child.path)
+                                  }
+                                }}
+                                sx={{
+                                  minHeight: 40,
+                                  mb: 0.5,
+                                  pl: 6.5,
+                                  borderRadius: 2,
+                                  color: childActive ? '#fff' : '#8ca2b5',
+                                  bgcolor: childActive
+                                    ? 'rgba(47, 128, 237, 0.15)'
+                                    : 'transparent',
+                                  '&:hover': {
+                                    bgcolor: 'rgba(255, 255, 255, 0.06)'
+                                  }
+                                }}
+                              >
+                                <ListItemText
+                                  primary={child.label}
+                                  sx={{
+                                    '& .MuiListItemText-primary': {
+                                      fontSize: 13,
+                                      fontWeight: childActive ? 600 : 400
+                                    }
+                                  }}
+                                />
+                              </ListItemButton>
+                            )
+                          })}
+                      </List>
+                    </Collapse>
+                  )}
+                </Box>
+              )
+            })}
         </List>
       </Box>
 

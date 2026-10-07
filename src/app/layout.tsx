@@ -4,6 +4,7 @@ import { ThemeProvider } from '@mui/material/styles'
 import theme from '@/theme/theme'
 import { AppRouterCacheProvider } from '@mui/material-nextjs/v15-appRouter'
 import './globals.css'
+import ToastProvider from '@/components/common/ToastProvider'
 
 export default function RootLayout({
   children
@@ -18,7 +19,10 @@ export default function RootLayout({
       </head>
       <body>
         <AppRouterCacheProvider>
-          <ThemeProvider theme={theme}>{children}</ThemeProvider>
+          <ThemeProvider theme={theme}>
+            {children}
+            <ToastProvider />
+          </ThemeProvider>
         </AppRouterCacheProvider>
       </body>
     </html>

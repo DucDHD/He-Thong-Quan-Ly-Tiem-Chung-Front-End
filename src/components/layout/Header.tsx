@@ -7,11 +7,14 @@ import { Avatar, Box, Divider, Stack, Typography } from '@mui/material'
 import { useRouter } from 'next/navigation'
 import { useState } from 'react'
 import { useTheme } from '@mui/material/styles'
-import { MenuItem } from '@mui/material'
 import FeedbackOutlinedIcon from '@mui/icons-material/FeedbackOutlined'
+import { logoutAPI } from '@/services/auth.service'
+import { toast } from 'react-toastify'
+import { useAuth } from '@/contexts/AuthContext'
 
 function Header() {
   const theme = useTheme()
+  const { user } = useAuth()
 
   const SIDEBAR_WIDTH = theme.layout.sidebarWidth
   const router = useRouter()
@@ -23,9 +26,17 @@ function Header() {
     router.push('/profile')
   }
 
-  const handleLogout = () => {
-    setOpenProfileMenu(false)
-    router.push('/login')
+  const handleLogout = async () => {
+    try {
+      setOpenProfileMenu(false)
+
+      await logoutAPI()
+
+      router.replace('/login')
+      router.refresh()
+    } catch {
+      toast.error('Đăng xuất thất bại:')
+    }
   }
   const handleFeedback = () => {
     setOpenProfileMenu(false)
@@ -146,7 +157,7 @@ function Header() {
                   lineHeight: 1.3
                 }}
               >
-                Admin
+                {user?.fullName}
               </Typography>
 
               <Typography
@@ -156,7 +167,7 @@ function Header() {
                   color: 'text.secondary'
                 }}
               >
-                Quản trị viên
+                {user?.role?.role_name}
               </Typography>
             </Box>
           </Box>

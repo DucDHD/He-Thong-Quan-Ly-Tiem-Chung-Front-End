@@ -29,6 +29,6 @@
     ".next/types/**/*.ts",
     ".next/dev/types/**/*.ts",
     "**/*.mts"
-, "src/app/(admin)/auth/register/page.tss"  ],
+, "src/app/(admin)/auth/register/page.tss", "src/components/profile/VaccinationHistoryDialog"  ],
   "exclude": ["node_modules"]
 }

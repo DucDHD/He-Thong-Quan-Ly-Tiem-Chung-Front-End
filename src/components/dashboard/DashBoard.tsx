@@ -10,6 +10,7 @@ import PeopleAltOutlinedIcon from '@mui/icons-material/PeopleAltOutlined'
 import { Box, Card, CardContent, Stack, Typography } from '@mui/material'
 import { useRouter } from 'next/navigation'
 import { useTheme } from '@mui/material/styles'
+import { useAuth } from '@/contexts/AuthContext'
 
 const featureCards = [
   {
@@ -53,6 +54,8 @@ const featureCards = [
 function DashBoard() {
   const theme = useTheme()
   const router = useRouter()
+
+  const { user } = useAuth()
 
   const SIDEBAR_WIDTH = theme.layout.sidebarWidth
   const HEADER_HEIGHT = theme.layout.headerHeight
@@ -162,7 +165,7 @@ function DashBoard() {
                 fontWeight: 700
               }}
             >
-              Xin chào, Admin
+              Xin chào, {user?.fullName}
             </Typography>
           </Box>
         </Box>

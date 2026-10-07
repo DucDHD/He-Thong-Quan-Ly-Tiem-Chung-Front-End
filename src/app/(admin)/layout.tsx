@@ -7,6 +7,7 @@ import Sidebar from '@/components/layout/Sidebar'
 
 import { LocalizationProvider } from '@mui/x-date-pickers/LocalizationProvider'
 import { AdapterDayjs } from '@mui/x-date-pickers/AdapterDayjs'
+import { AuthProvider } from '@/contexts/AuthContext'
 
 const AdminLayout = ({
   children
@@ -21,10 +22,12 @@ const AdminLayout = ({
           bgcolor: '#f5f7fb'
         }}
       >
-        <Sidebar />
-        <Header />
-        {children}
-        <Footer />
+        <AuthProvider>
+          <Sidebar />
+          <Header />
+          {children}
+          <Footer />
+        </AuthProvider>
       </Box>
     </LocalizationProvider>
   )

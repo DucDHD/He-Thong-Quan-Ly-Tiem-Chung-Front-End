@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
+import axios from 'axios'
 
 import {
   Box,
@@ -17,13 +18,15 @@ import PersonAddAlt1OutlinedIcon from '@mui/icons-material/PersonAddAlt1Outlined
 import VisibilityOutlinedIcon from '@mui/icons-material/VisibilityOutlined'
 import VisibilityOffOutlinedIcon from '@mui/icons-material/VisibilityOffOutlined'
 import LoginOutlinedIcon from '@mui/icons-material/LoginOutlined'
-
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
+import { registerAPI } from '@/services/auth.service'
+import Cookies from 'js-cookie'
+import { toast } from 'react-toastify'
 
 const registerSchema = z.object({
-  username: z
+  fullName: z
     .string()
     .trim()
     .min(3, 'Tên đăng nhập phải có ít nhất 3 ký tự')
@@ -58,38 +61,47 @@ const RegisterPage = () => {
   const {
     register,
     handleSubmit,
+    setError,
     formState: { errors, isSubmitting }
   } = useForm<RegisterFormData>({
     resolver: zodResolver(registerSchema),
     defaultValues: {
-      username: '',
+      fullName: '',
       email: '',
       password: ''
     }
   })
 
-  const onSubmit = async (data: RegisterFormData) => {
-    const payload = {
-      username: data.username,
+  const handleRegister = async (data: RegisterFormData) => {
+    const user = {
+      fullName: data.fullName,
       email: data.email,
       password: data.password
     }
+    try {
+      const response = await registerAPI(user)
 
-    console.log('Register customer:', payload)
+      sessionStorage.setItem('codeExpiredAt', response.codeExpiredAt)
+      Cookies.set('pendingVerify', 'true', {
+        expires: 5 / (24 * 60),
+        path: '/'
+      })
 
-    // TODO: Backend
-    //
-    // await fetch('/api/auth/register', {
-    //   method: 'POST',
-    //   headers: {
-    //     'Content-Type': 'application/json'
-    //   },
-    //   body: JSON.stringify(payload)
-    // })
+      toast.success('Đăng ký tài khoản thành công')
 
-    await new Promise((resolve) => setTimeout(resolve, 500))
+      router.push(`/verify?email=${encodeURIComponent(data.email)}`)
+    } catch (error) {
+      if (axios.isAxiosError(error)) {
+        const status = error.response?.status
+        const message = error.response?.data?.message
 
-    router.push('/login')
+        if (status === 409) {
+          setError('email', { type: 'server', message: message })
+        }
+        return
+      }
+      toast.error('Đăng ký tài khoản thất bại')
+    }
   }
 
   return (
@@ -158,7 +170,7 @@ const RegisterPage = () => {
         {/* Form */}
         <Box
           component="form"
-          onSubmit={handleSubmit(onSubmit)}
+          onSubmit={handleSubmit(handleRegister)}
           noValidate
           sx={{
             px: 4,
@@ -172,18 +184,19 @@ const RegisterPage = () => {
               gap: 2
             }}
           >
-            {/* Username */}
+            {/* fullName */}
             <TextField
-              label="Tên đăng nhập"
-              placeholder="VD: nguyenvanan"
+              label="Họ và Tên"
               fullWidth
+              autoComplete="off"
               required
-              {...register('username')}
-              error={Boolean(errors.username)}
-              helperText={errors.username?.message}
+              {...register('fullName')}
+              error={Boolean(errors.fullName)}
+              helperText={errors.fullName?.message}
               slotProps={{
                 htmlInput: {
-                  maxLength: 30
+                  maxLength: 30,
+                  autoComplete: 'off'
                 }
               }}
             />
@@ -192,15 +205,16 @@ const RegisterPage = () => {
             <TextField
               label="Email"
               type="email"
-              placeholder="VD: nguyenvanan@gmail.com"
               fullWidth
+              autoComplete="off"
               required
               {...register('email')}
               error={Boolean(errors.email)}
               helperText={errors.email?.message}
               slotProps={{
                 htmlInput: {
-                  maxLength: 100
+                  maxLength: 100,
+                  autoComplete: 'off'
                 }
               }}
             />
@@ -211,6 +225,7 @@ const RegisterPage = () => {
               type={showPassword ? 'text' : 'password'}
               placeholder="Nhập mật khẩu"
               fullWidth
+              autoComplete="off"
               required
               {...register('password')}
               error={Boolean(errors.password)}
@@ -234,7 +249,8 @@ const RegisterPage = () => {
                   )
                 },
                 htmlInput: {
-                  maxLength: 50
+                  maxLength: 50,
+                  autoComplete: 'off'
                 }
               }}
             />

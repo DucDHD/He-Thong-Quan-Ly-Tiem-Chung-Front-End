@@ -9,243 +9,201 @@ import {
   TextField,
   Typography
 } from '@mui/material'
-
 import ArrowBackOutlinedIcon from '@mui/icons-material/ArrowBackOutlined'
 import CalendarMonthOutlinedIcon from '@mui/icons-material/CalendarMonthOutlined'
 import SaveOutlinedIcon from '@mui/icons-material/SaveOutlined'
 
-import { useRouter } from 'next/navigation'
-
-import { useForm } from 'react-hook-form'
+import { Controller, useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
+import { DatePicker, TimePicker } from '@mui/x-date-pickers'
+import { useRouter, useSearchParams } from 'next/navigation'
+import { useEffect, useState } from 'react'
+import { toast } from 'react-toastify'
+import axios from 'axios'
+import dayjs from 'dayjs'
 import { z } from 'zod'
 
-// ======================================================
-// TYPES
-// ======================================================
+import {
+  getAllVaccineAPI,
+  getVaccinationStaffAPI,
+  getVaccinationLocationAPI,
+  getVaccinationScheduleByIdAPI,
+  updateVaccinationScheduleAPI,
+  type Vaccine,
+  type VaccinationStaff,
+  type VaccinationLocation
+} from '@/services/vaccination-schedule.service'
 
-type ScheduleStatus = 'upcoming' | 'full' | 'completed'
-
-type Schedule = {
-  id: number
-  vaccinationDate: string
-  vaccinationTime: string
-  vaccine: string
-  age: string
-  quantity: number
-  registered: number
-  medicalStaff: string
-  status: ScheduleStatus
-}
+// ======================================================
+// PROPS
+// ======================================================
 
 type ScheduleUpdateProps = {
   id: string
 }
 
-type ScheduleUpdateFormProps = {
-  schedule: Schedule
-}
-
 // ======================================================
-// MOCK DATA
-// Sau này thay bằng API
+// VALIDATION
 // ======================================================
 
-const schedules: Schedule[] = [
-  {
-    id: 1,
-    vaccinationDate: '2026-09-16',
-    vaccinationTime: '14:00',
-    vaccine: 'Gardasil 9',
-    age: '18',
-    quantity: 30,
-    registered: 18,
-    medicalStaff: 'BS. Nguyễn Văn A',
-    status: 'upcoming'
-  },
-  {
-    id: 2,
-    vaccinationDate: '2026-09-18',
-    vaccinationTime: '08:00',
-    vaccine: 'Influvac Tetra',
-    age: '25',
-    quantity: 20,
-    registered: 20,
-    medicalStaff: 'BS. Trần Văn B',
-    status: 'full'
-  },
-  {
-    id: 3,
-    vaccinationDate: '2026-09-20',
-    vaccinationTime: '09:30',
-    vaccine: 'Prevenar 13',
-    age: '60',
-    quantity: 25,
-    registered: 10,
-    medicalStaff: 'BS. Lê Thị C',
-    status: 'upcoming'
-  },
-  {
-    id: 4,
-    vaccinationDate: '2026-09-22',
-    vaccinationTime: '13:30',
-    vaccine: 'Gardasil 9',
-    age: '20',
-    quantity: 25,
-    registered: 15,
-    medicalStaff: 'BS. Nguyễn Văn A',
-    status: 'upcoming'
-  },
-  {
-    id: 5,
-    vaccinationDate: '2026-09-25',
-    vaccinationTime: '08:30',
-    vaccine: 'Influvac Tetra',
-    age: '30',
-    quantity: 30,
-    registered: 12,
-    medicalStaff: 'BS. Trần Văn B',
-    status: 'upcoming'
-  },
-  {
-    id: 6,
-    vaccinationDate: '2026-09-27',
-    vaccinationTime: '10:00',
-    vaccine: 'Prevenar 13',
-    age: '65',
-    quantity: 20,
-    registered: 20,
-    medicalStaff: 'BS. Lê Thị C',
-    status: 'full'
-  },
-  {
-    id: 7,
-    vaccinationDate: '2026-09-29',
-    vaccinationTime: '15:00',
-    vaccine: 'Gardasil 9',
-    age: '21',
-    quantity: 35,
-    registered: 8,
-    medicalStaff: 'BS. Nguyễn Văn A',
-    status: 'upcoming'
-  },
-  {
-    id: 8,
-    vaccinationDate: '2026-10-01',
-    vaccinationTime: '07:30',
-    vaccine: 'Influvac Tetra',
-    age: '40',
-    quantity: 20,
-    registered: 9,
-    medicalStaff: 'BS. Trần Văn B',
-    status: 'upcoming'
-  },
-  {
-    id: 9,
-    vaccinationDate: '2026-10-03',
-    vaccinationTime: '09:00',
-    vaccine: 'Prevenar 13',
-    age: '55',
-    quantity: 30,
-    registered: 14,
-    medicalStaff: 'BS. Lê Thị C',
-    status: 'upcoming'
-  },
-  {
-    id: 10,
-    vaccinationDate: '2026-10-05',
-    vaccinationTime: '14:30',
-    vaccine: 'Gardasil 9',
-    age: '24',
-    quantity: 25,
-    registered: 11,
-    medicalStaff: 'BS. Nguyễn Văn A',
-    status: 'upcoming'
-  },
-  {
-    id: 11,
-    vaccinationDate: '2026-10-08',
-    vaccinationTime: '08:00',
-    vaccine: 'Influvac Tetra',
-    age: '35',
-    quantity: 25,
-    registered: 6,
-    medicalStaff: 'BS. Trần Văn B',
-    status: 'upcoming'
-  },
-  {
-    id: 12,
-    vaccinationDate: '2026-10-10',
-    vaccinationTime: '10:30',
-    vaccine: 'Prevenar 13',
-    age: '62',
-    quantity: 20,
-    registered: 7,
-    medicalStaff: 'BS. Lê Thị C',
-    status: 'upcoming'
-  },
-  {
-    id: 13,
-    vaccinationDate: '2026-10-12',
-    vaccinationTime: '09:00',
-    vaccine: 'Gardasil 9',
-    age: '19',
-    quantity: 30,
-    registered: 14,
-    medicalStaff: 'BS. Nguyễn Văn A',
-    status: 'upcoming'
-  },
-  {
-    id: 14,
-    vaccinationDate: '2026-10-15',
-    vaccinationTime: '14:30',
-    vaccine: 'Influvac Tetra',
-    age: '45',
-    quantity: 25,
-    registered: 11,
-    medicalStaff: 'BS. Trần Văn B',
-    status: 'upcoming'
-  },
-  {
-    id: 15,
-    vaccinationDate: '2026-10-18',
-    vaccinationTime: '08:00',
-    vaccine: 'Prevenar 13',
-    age: '58',
-    quantity: 25,
-    registered: 6,
-    medicalStaff: 'BS. Lê Thị C',
-    status: 'upcoming'
-  },
-  {
-    id: 16,
-    vaccinationDate: '2026-10-20',
-    vaccinationTime: '10:30',
-    vaccine: 'Gardasil 9',
-    age: '26',
-    quantity: 20,
-    registered: 7,
-    medicalStaff: 'BS. Nguyễn Văn A',
-    status: 'upcoming'
-  }
-]
+const scheduleSchema = z.object({
+  vaccinationDate: z.string().min(1, 'Vui lòng chọn ngày tiêm'),
+
+  vaccinationTime: z.string().min(1, 'Vui lòng chọn giờ tiêm'),
+
+  vaccine_id: z
+    .number({ message: 'Vui lòng chọn vaccine' })
+    .min(1, 'Vui lòng chọn vaccine'),
+
+  capacity: z
+    .number({ message: 'Vui lòng nhập số lượng' })
+    .int('Số lượng phải là số nguyên')
+    .min(1, 'Số lượng phải lớn hơn 0'),
+
+  age: z
+    .string()
+    .trim()
+    .min(1, 'Vui lòng nhập độ tuổi')
+    .max(100, 'Độ tuổi không được vượt quá 100 ký tự'),
+
+  user_id: z
+    .number({ message: 'Vui lòng chọn nhân viên y tế' })
+    .min(1, 'Vui lòng chọn nhân viên y tế'),
+
+  location_id: z
+    .number({ message: 'Vui lòng chọn địa điểm tiêm' })
+    .min(1, 'Vui lòng chọn địa điểm tiêm'),
+
+  note: z.string().trim().max(500, 'Ghi chú không được vượt quá 500 ký tự')
+})
+
+type ScheduleFormData = z.infer<typeof scheduleSchema>
 
 // ======================================================
-// MAIN COMPONENT
+// COMPONENT
 // ======================================================
 
 const ScheduleUpdate = ({ id }: ScheduleUpdateProps) => {
   const router = useRouter()
-
+  const searchParams = useSearchParams()
+  const currentPage = searchParams.get('currentPage') || '1'
   const scheduleId = Number(id)
 
-  const schedule = schedules.find((item) => item.id === scheduleId)
+  const [vaccines, setVaccines] = useState<Vaccine[]>([])
+  const [staff, setStaff] = useState<VaccinationStaff[]>([])
+  const [locations, setLocations] = useState<VaccinationLocation[]>([])
+  const [loading, setLoading] = useState(true)
+
+  const {
+    register,
+    control,
+    handleSubmit,
+    reset,
+    setError,
+    formState: { errors, isSubmitting }
+  } = useForm<ScheduleFormData>({
+    resolver: zodResolver(scheduleSchema),
+    defaultValues: {
+      vaccinationDate: '',
+      vaccinationTime: '',
+      vaccine_id: undefined,
+      capacity: 1,
+      age: '',
+      user_id: undefined,
+      location_id: undefined,
+      note: ''
+    }
+  })
 
   // ====================================================
-  // NOT FOUND
+  // LOAD DATA
   // ====================================================
 
-  if (!schedule) {
+  useEffect(() => {
+    const fetchData = async () => {
+      try {
+        const [vaccinesData, staffData, locationData, schedule] =
+          await Promise.all([
+            getAllVaccineAPI(),
+            getVaccinationStaffAPI(),
+            getVaccinationLocationAPI(),
+            getVaccinationScheduleByIdAPI(scheduleId)
+          ])
+        setVaccines(vaccinesData)
+        setStaff(staffData)
+        setLocations(locationData)
+
+        reset({
+          vaccinationDate: dayjs(schedule.vaccination_date).format(
+            'YYYY-MM-DD'
+          ),
+          vaccinationTime: dayjs(schedule.vaccination_date).format('HH:mm'),
+          vaccine_id: Number(schedule.vaccine_id),
+          capacity: Number(schedule.capacity),
+          age: schedule.age,
+          user_id: Number(schedule.user_id),
+          location_id: Number(schedule.location_id),
+          note: schedule.note ?? ''
+        })
+      } catch (error) {
+        console.error('Lỗi lấy thông tin lịch tiêm:', error)
+        toast.error('Không thể tải thông tin lịch tiêm')
+      } finally {
+        setLoading(false)
+      }
+    }
+
+    if (scheduleId) {
+      fetchData()
+    }
+  }, [scheduleId, reset])
+  // ====================================================
+  // BACK
+  // ====================================================
+
+  const handleBack = () => {
+    router.push(`/vaccination-schedules?page=${currentPage}`)
+  }
+  // ====================================================
+  // UPDATE
+  // ====================================================
+
+  const handleUpdate = async ({
+    vaccinationDate,
+    vaccinationTime,
+    ...data
+  }: ScheduleFormData) => {
+    try {
+      await updateVaccinationScheduleAPI(scheduleId, {
+        ...data,
+        vaccination_date: `${vaccinationDate}T${vaccinationTime}:00`
+      })
+
+      toast.success('Cập nhật lịch tiêm thành công')
+      router.push('/vaccination-schedules')
+    } catch (error) {
+      if (axios.isAxiosError(error)) {
+        const { field, message } = error.response?.data || {}
+
+        if (field && message) {
+          setError(field as keyof ScheduleFormData, {
+            type: 'server',
+            message
+          })
+
+          return
+        }
+      }
+
+      toast.error('Cập nhật lịch tiêm thất bại')
+    }
+  }
+
+  // ====================================================
+  // LOADING
+  // ====================================================
+
+  if (loading) {
     return (
       <Box
         component="main"
@@ -257,219 +215,11 @@ const ScheduleUpdate = ({ id }: ScheduleUpdateProps) => {
           boxSizing: 'border-box'
         })}
       >
-        <Box
-          sx={{
-            px: 3,
-            py: 3
-          }}
-        >
-          <Paper
-            variant="outlined"
-            sx={{
-              width: '100%',
-              maxWidth: 600,
-              p: 4,
-              borderRadius: 2.5,
-              boxShadow: 'none',
-              textAlign: 'center'
-            }}
-          >
-            <Typography
-              variant="h6"
-              sx={{
-                fontWeight: 600
-              }}
-            >
-              Không tìm thấy lịch tiêm
-            </Typography>
-
-            <Typography
-              variant="body2"
-              color="text.secondary"
-              sx={{
-                mt: 1,
-                mb: 3
-              }}
-            >
-              Không tìm thấy lịch tiêm có mã #{id}.
-            </Typography>
-
-            <Button
-              variant="contained"
-              onClick={() => router.push('/vaccination-schedules')}
-              sx={{
-                textTransform: 'none'
-              }}
-            >
-              Quay lại danh sách
-            </Button>
-          </Paper>
+        <Box sx={{ p: 3 }}>
+          <Typography>Đang tải thông tin lịch tiêm...</Typography>
         </Box>
       </Box>
     )
-  }
-
-  return <ScheduleUpdateForm key={schedule.id} schedule={schedule} />
-}
-
-// ======================================================
-// FORM COMPONENT
-// ======================================================
-
-const ScheduleUpdateForm = ({ schedule }: ScheduleUpdateFormProps) => {
-  const router = useRouter()
-
-  const registered = schedule.registered
-
-  // ====================================================
-  // ZOD SCHEMA
-  // ====================================================
-
-  const schema = z.object({
-    vaccinationDate: z.string().min(1, 'Vui lòng chọn ngày tiêm'),
-
-    vaccinationTime: z.string().min(1, 'Vui lòng chọn giờ tiêm'),
-
-    vaccine: z.string().min(1, 'Vui lòng chọn loại vaccine'),
-
-    quantity: z
-      .string()
-      .min(1, 'Vui lòng nhập số lượng vaccine')
-      .refine(
-        (value) => {
-          if (!value) return true
-
-          const quantity = Number(value)
-
-          return Number.isInteger(quantity) && quantity >= 1
-        },
-        {
-          message: 'Số lượng phải là số nguyên lớn hơn 0'
-        }
-      )
-      .refine(
-        (value) => {
-          if (!value) return true
-
-          return Number(value) <= 500
-        },
-        {
-          message: 'Số lượng không được vượt quá 500'
-        }
-      )
-      .refine(
-        (value) => {
-          if (!value) return true
-
-          return Number(value) >= registered
-        },
-        {
-          message: `Số lượng không được nhỏ hơn số người đã đăng ký (${registered})`
-        }
-      ),
-
-    age: z
-      .string()
-      .min(1, 'Vui lòng nhập độ tuổi')
-      .refine(
-        (value) => {
-          if (!value) return true
-
-          const age = Number(value)
-
-          return Number.isInteger(age)
-        },
-        {
-          message: 'Độ tuổi phải là số nguyên'
-        }
-      )
-      .refine(
-        (value) => {
-          if (!value) return true
-
-          const age = Number(value)
-
-          return age >= 0 && age <= 120
-        },
-        {
-          message: 'Độ tuổi phải từ 0 đến 120'
-        }
-      ),
-
-    medicalStaff: z.string().min(1, 'Vui lòng chọn nhân viên y tế'),
-
-    status: z.enum(['upcoming', 'full', 'completed'])
-  })
-
-  type FormValues = z.infer<typeof schema>
-
-  // ====================================================
-  // REACT HOOK FORM
-  // ====================================================
-
-  const {
-    register,
-    handleSubmit,
-    formState: { errors, isSubmitting }
-  } = useForm<FormValues>({
-    resolver: zodResolver(schema),
-
-    defaultValues: {
-      vaccinationDate: schedule.vaccinationDate,
-
-      vaccinationTime: schedule.vaccinationTime,
-
-      vaccine: schedule.vaccine,
-
-      quantity: String(schedule.quantity),
-
-      age: schedule.age,
-
-      medicalStaff: schedule.medicalStaff,
-
-      status: schedule.status
-    }
-  })
-
-  // ====================================================
-  // BACK
-  // ====================================================
-
-  const handleBack = () => {
-    router.push('/vaccination-schedules')
-  }
-
-  // ====================================================
-  // SUBMIT
-  // ====================================================
-
-  const onSubmit = (data: FormValues) => {
-    const payload = {
-      id: schedule.id,
-
-      vaccinationDate: data.vaccinationDate,
-
-      vaccinationTime: data.vaccinationTime,
-
-      vaccine: data.vaccine,
-
-      quantity: Number(data.quantity),
-
-      age: Number(data.age),
-
-      registered: schedule.registered,
-
-      medicalStaff: data.medicalStaff,
-
-      status: data.status
-    }
-
-    console.log('UPDATE VACCINATION SCHEDULE:', payload)
-
-    // TODO:
-    // Gọi API update ở đây
-
-    router.push('/vaccination-schedules')
   }
 
   // ====================================================
@@ -487,7 +237,6 @@ const ScheduleUpdateForm = ({ schedule }: ScheduleUpdateFormProps) => {
         boxSizing: 'border-box'
       })}
     >
-      {/* PAGE CONTENT */}
       <Box
         sx={{
           width: '100%',
@@ -495,7 +244,6 @@ const ScheduleUpdateForm = ({ schedule }: ScheduleUpdateFormProps) => {
           boxSizing: 'border-box'
         }}
       >
-        {/* CARD */}
         <Paper
           variant="outlined"
           sx={{
@@ -507,6 +255,7 @@ const ScheduleUpdateForm = ({ schedule }: ScheduleUpdateFormProps) => {
           }}
         >
           {/* HEADER */}
+
           <Box
             sx={{
               px: 3,
@@ -516,7 +265,6 @@ const ScheduleUpdateForm = ({ schedule }: ScheduleUpdateFormProps) => {
               gap: 1.5
             }}
           >
-            {/* BACK */}
             <Button
               type="button"
               onClick={handleBack}
@@ -536,7 +284,6 @@ const ScheduleUpdateForm = ({ schedule }: ScheduleUpdateFormProps) => {
               <ArrowBackOutlinedIcon />
             </Button>
 
-            {/* ICON */}
             <Box
               sx={{
                 width: 44,
@@ -556,7 +303,6 @@ const ScheduleUpdateForm = ({ schedule }: ScheduleUpdateFormProps) => {
               <CalendarMonthOutlinedIcon />
             </Box>
 
-            {/* TITLE */}
             <Box>
               <Typography
                 variant="h5"
@@ -571,9 +317,7 @@ const ScheduleUpdateForm = ({ schedule }: ScheduleUpdateFormProps) => {
               <Typography
                 variant="body2"
                 color="text.secondary"
-                sx={{
-                  mt: 0.25
-                }}
+                sx={{ mt: 0.25 }}
               >
                 Cập nhật thông tin lịch tiêm chủng
               </Typography>
@@ -583,8 +327,12 @@ const ScheduleUpdateForm = ({ schedule }: ScheduleUpdateFormProps) => {
           <Divider />
 
           {/* FORM */}
-          <Box component="form" onSubmit={handleSubmit(onSubmit)} noValidate>
-            {/* FORM FIELDS */}
+
+          <Box
+            component="form"
+            onSubmit={handleSubmit(handleUpdate)}
+            noValidate
+          >
             <Box
               sx={{
                 p: 3,
@@ -598,144 +346,209 @@ const ScheduleUpdateForm = ({ schedule }: ScheduleUpdateFormProps) => {
               }}
             >
               {/* DATE */}
-              <TextField
-                fullWidth
-                required
-                type="date"
-                label="Ngày tiêm"
-                {...register('vaccinationDate')}
-                error={Boolean(errors.vaccinationDate)}
-                helperText={errors.vaccinationDate?.message}
-                slotProps={{
-                  inputLabel: {
-                    shrink: true
-                  }
-                }}
+
+              <Controller
+                name="vaccinationDate"
+                control={control}
+                render={({ field }) => (
+                  <DatePicker
+                    label="Ngày tiêm"
+                    format="DD/MM/YYYY"
+                    value={field.value ? dayjs(field.value) : null}
+                    onChange={(value) =>
+                      field.onChange(value?.format('YYYY-MM-DD') ?? '')
+                    }
+                    slotProps={{
+                      textField: {
+                        fullWidth: true,
+                        required: true,
+                        error: Boolean(errors.vaccinationDate),
+                        helperText: errors.vaccinationDate?.message
+                      }
+                    }}
+                  />
+                )}
               />
 
               {/* TIME */}
-              <TextField
-                fullWidth
-                required
-                type="time"
-                label="Giờ tiêm"
-                {...register('vaccinationTime')}
-                error={Boolean(errors.vaccinationTime)}
-                helperText={errors.vaccinationTime?.message}
-                slotProps={{
-                  inputLabel: {
-                    shrink: true
-                  }
-                }}
+
+              <Controller
+                name="vaccinationTime"
+                control={control}
+                render={({ field }) => (
+                  <TimePicker
+                    label="Giờ tiêm"
+                    ampm={false}
+                    format="HH:mm"
+                    value={
+                      field.value ? dayjs(`2000-01-01T${field.value}`) : null
+                    }
+                    onChange={(value) =>
+                      field.onChange(value?.format('HH:mm') ?? '')
+                    }
+                    slotProps={{
+                      textField: {
+                        fullWidth: true,
+                        required: true,
+                        error: Boolean(errors.vaccinationTime),
+                        helperText: errors.vaccinationTime?.message
+                      }
+                    }}
+                  />
+                )}
               />
 
               {/* VACCINE */}
-              <TextField
-                select
-                fullWidth
-                required
-                label="Loại vaccine"
-                defaultValue={schedule.vaccine}
-                {...register('vaccine')}
-                error={Boolean(errors.vaccine)}
-                helperText={errors.vaccine?.message}
-              >
-                <MenuItem value="">Chọn loại vaccine</MenuItem>
 
-                <MenuItem value="Gardasil 9">Gardasil 9</MenuItem>
+              <Controller
+                name="vaccine_id"
+                control={control}
+                render={({ field }) => (
+                  <TextField
+                    select
+                    fullWidth
+                    required
+                    label="Loại vaccine"
+                    value={field.value ?? ''}
+                    onChange={(event) =>
+                      field.onChange(Number(event.target.value))
+                    }
+                    error={Boolean(errors.vaccine_id)}
+                    helperText={errors.vaccine_id?.message}
+                  >
+                    <MenuItem value="">
+                      <em>Chọn loại vaccine</em>
+                    </MenuItem>
 
-                <MenuItem value="Influvac Tetra">Influvac Tetra</MenuItem>
+                    {vaccines.map((vaccine) => (
+                      <MenuItem
+                        key={vaccine.vaccine_id}
+                        value={vaccine.vaccine_id}
+                      >
+                        {vaccine.vaccine_name}
+                      </MenuItem>
+                    ))}
+                  </TextField>
+                )}
+              />
 
-                <MenuItem value="Prevenar 13">Prevenar 13</MenuItem>
-              </TextField>
+              {/* CAPACITY */}
 
-              {/* QUANTITY */}
               <TextField
                 fullWidth
                 required
                 type="number"
                 label="Số lượng vaccine"
-                {...register('quantity')}
-                error={Boolean(errors.quantity)}
-                helperText={
-                  errors.quantity?.message ||
-                  `Đã có ${registered} người đăng ký`
-                }
+                {...register('capacity', {
+                  valueAsNumber: true
+                })}
+                error={Boolean(errors.capacity)}
+                helperText={errors.capacity?.message}
                 slotProps={{
                   htmlInput: {
-                    min: 1,
-                    max: 500
+                    min: 1
                   }
                 }}
               />
 
               {/* AGE */}
+
               <TextField
                 fullWidth
                 required
-                type="number"
                 label="Độ tuổi"
-                placeholder="Độ tuổi"
+                placeholder="Ví dụ: 18 tuổi trở lên"
                 {...register('age')}
                 error={Boolean(errors.age)}
-                helperText={errors.age?.message || 'Nhập tuổi từ 0 đến 120'}
-                slotProps={{
-                  htmlInput: {
-                    min: 0,
-                    max: 120
-                  }
-                }}
+                helperText={errors.age?.message}
               />
 
-              {/* MEDICAL STAFF */}
+              {/* STAFF */}
+
+              <Controller
+                name="user_id"
+                control={control}
+                render={({ field }) => (
+                  <TextField
+                    select
+                    fullWidth
+                    required
+                    label="Nhân viên y tế"
+                    value={field.value ?? ''}
+                    onChange={(event) =>
+                      field.onChange(Number(event.target.value))
+                    }
+                    error={Boolean(errors.user_id)}
+                    helperText={errors.user_id?.message}
+                  >
+                    <MenuItem value="">
+                      <em>Chọn nhân viên y tế</em>
+                    </MenuItem>
+
+                    {staff.map((item) => (
+                      <MenuItem key={item.user_id} value={Number(item.user_id)}>
+                        {item.fullName}
+                      </MenuItem>
+                    ))}
+                  </TextField>
+                )}
+              />
+              <Controller
+                name="location_id"
+                control={control}
+                render={({ field }) => (
+                  <TextField
+                    select
+                    fullWidth
+                    required
+                    label="Địa điểm tiêm"
+                    value={field.value ?? ''}
+                    onChange={(event) =>
+                      field.onChange(Number(event.target.value))
+                    }
+                    error={Boolean(errors.location_id)}
+                    helperText={errors.location_id?.message}
+                  >
+                    <MenuItem value="">
+                      <em>Chọn địa điểm tiêm</em>
+                    </MenuItem>
+
+                    {locations.map((location) => (
+                      <MenuItem
+                        key={location.location_id}
+                        value={location.location_id}
+                      >
+                        {location.locationName} - {location.address}
+                      </MenuItem>
+                    ))}
+                  </TextField>
+                )}
+              />
+
+              {/* NOTE */}
+
               <TextField
-                select
                 fullWidth
-                required
-                label="Nhân viên y tế"
-                defaultValue={schedule.medicalStaff}
-                {...register('medicalStaff')}
-                error={Boolean(errors.medicalStaff)}
-                helperText={errors.medicalStaff?.message}
-              >
-                <MenuItem value="">Chọn nhân viên y tế</MenuItem>
-
-                <MenuItem value="BS. Nguyễn Văn A">BS. Nguyễn Văn A</MenuItem>
-
-                <MenuItem value="BS. Trần Văn B">BS. Trần Văn B</MenuItem>
-
-                <MenuItem value="BS. Lê Thị C">BS. Lê Thị C</MenuItem>
-              </TextField>
-
-              {/* STATUS */}
-              <TextField
-                select
-                fullWidth
-                required
-                label="Trạng thái"
-                defaultValue={schedule.status}
-                {...register('status')}
-                error={Boolean(errors.status)}
-                helperText={errors.status?.message}
+                multiline
+                minRows={4}
+                label="Ghi chú"
+                placeholder="Nhập ghi chú..."
+                {...register('note')}
+                error={Boolean(errors.note)}
+                helperText={errors.note?.message}
                 sx={{
                   gridColumn: {
                     xs: 'auto',
                     md: '1 / -1'
                   }
                 }}
-              >
-                <MenuItem value="upcoming">Sắp diễn ra</MenuItem>
-
-                <MenuItem value="full">Đã đủ</MenuItem>
-
-                <MenuItem value="completed">Đã hoàn thành</MenuItem>
-              </TextField>
+              />
             </Box>
 
-            {/* DIVIDER */}
             <Divider />
 
             {/* ACTIONS */}
+
             <Box
               sx={{
                 px: 3,
@@ -772,7 +585,7 @@ const ScheduleUpdateForm = ({ schedule }: ScheduleUpdateFormProps) => {
                   fontWeight: 600
                 }}
               >
-                {isSubmitting ? 'Đang lưu...' : 'Lưu'}
+                {isSubmitting ? 'Đang cập nhật...' : 'Cập nhật'}
               </Button>
             </Box>
           </Box>

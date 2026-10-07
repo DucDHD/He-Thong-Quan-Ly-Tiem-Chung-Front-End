@@ -11,6 +11,7 @@ import {
   TextField,
   Typography
 } from '@mui/material'
+import { useForm, Controller } from 'react-hook-form'
 
 import ArrowBackOutlinedIcon from '@mui/icons-material/ArrowBackOutlined'
 import PersonAddAltOutlinedIcon from '@mui/icons-material/PersonAddAltOutlined'
@@ -19,75 +20,67 @@ import VisibilityOffOutlinedIcon from '@mui/icons-material/VisibilityOffOutlined
 
 import { zodResolver } from '@hookform/resolvers/zod'
 import { useRouter } from 'next/navigation'
-import { useState } from 'react'
-import { useForm } from 'react-hook-form'
+import { useState, useEffect } from 'react'
+
 import { z } from 'zod'
+
+import { DatePicker } from '@mui/x-date-pickers/DatePicker'
+
+import dayjs from 'dayjs'
+
+import { createUser, getRoles, type Role } from '@/services/user.service'
+import axios from 'axios'
+import { toast } from 'react-toastify'
+import { formatCccd, formatPhone } from '@/utils/format'
 
 // ======================================================
 // VALIDATION
 // ======================================================
 
 const userSchema = z.object({
-  username: z
-    .string()
-    .trim()
-    .min(1, 'Vui lòng nhập tên đăng nhập')
-    .min(3, 'Tên đăng nhập phải có ít nhất 3 ký tự')
-    .max(30, 'Tên đăng nhập không được vượt quá 30 ký tự')
-    .regex(
-      /^[a-zA-Z0-9._-]+$/,
-      'Tên đăng nhập chỉ được chứa chữ, số, dấu chấm, gạch dưới và gạch ngang'
-    ),
-
-  password: z
-    .string()
-    .min(1, 'Vui lòng nhập mật khẩu')
-    .min(6, 'Mật khẩu phải có ít nhất 6 ký tự')
-    .max(50, 'Mật khẩu không được vượt quá 50 ký tự'),
-
-  role: z.string().min(1, 'Vui lòng chọn phân quyền'),
-
   fullName: z
     .string()
     .trim()
     .min(1, 'Vui lòng nhập họ và tên')
-    .min(2, 'Họ và tên phải có ít nhất 2 ký tự')
-    .max(100, 'Họ và tên không được vượt quá 100 ký tự')
-    .regex(
-      /^[\p{L}\s'.-]+$/u,
-      'Họ và tên không được chứa số hoặc ký tự không hợp lệ'
-    ),
-
-  phone: z
-    .string()
-    .trim()
-    .min(1, 'Vui lòng nhập số điện thoại')
-    .regex(/^0\d{9}$/, 'Số điện thoại phải gồm 10 số và bắt đầu bằng 0'),
+    .max(100, 'Họ và tên không được vượt quá 100 ký tự'),
 
   email: z
     .string()
     .trim()
     .min(1, 'Vui lòng nhập email')
-    .max(100, 'Email không được vượt quá 100 ký tự')
-    .refine((value) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value), {
-      message: 'Email không đúng định dạng'
-    }),
+    .email('Email không đúng định dạng')
+    .max(100, 'Email không được vượt quá 100 ký tự'),
 
-  identityNumber: z
+  password: z
     .string()
-    .trim()
+    .min(1, 'Vui lòng nhập mật khẩu')
+    .min(6, 'Mật khẩu phải có ít nhất 6 ký tự'),
+
+  phone: z
+    .string()
+    .min(1, 'Vui lòng nhập số điện thoại')
+    .regex(/^0\d{9}$/, 'Số điện thoại phải gồm 10 số và bắt đầu bằng 0'),
+
+  cccd: z
+    .string()
     .min(1, 'Vui lòng nhập CCCD')
-    .length(12, 'CCCD phải gồm đúng 12 chữ số')
-    .regex(/^\d{12}$/, 'CCCD chỉ được chứa chữ số'),
+    .regex(/^\d{12}$/, 'CCCD phải gồm đúng 12 chữ số'),
+
+  dateOfBirth: z.string().min(1, 'Vui lòng chọn ngày sinh'),
+
+  gender: z.string().min(1, 'Vui lòng chọn giới tính'),
 
   address: z
     .string()
     .trim()
-    .min(1, 'Vui lòng nhập nơi ở')
-    .min(5, 'Nơi ở phải có ít nhất 5 ký tự')
-    .max(255, 'Nơi ở không được vượt quá 255 ký tự'),
+    .min(1, 'Vui lòng nhập địa chỉ')
+    .max(255, 'Địa chỉ không được vượt quá 255 ký tự'),
 
-  description: z.string().trim().max(500, 'Mô tả không được vượt quá 500 ký tự')
+  role_id: z
+    .number({
+      message: 'Vui lòng chọn vai trò'
+    })
+    .min(1, 'Vui lòng chọn vai trò')
 })
 
 type UserFormData = z.infer<typeof userSchema>
@@ -98,14 +91,31 @@ type UserFormData = z.infer<typeof userSchema>
 
 const UserCreate = () => {
   const router = useRouter()
+  const [roles, setRoles] = useState<Role[]>([])
+
+  useEffect(() => {
+    const fetchRoles = async () => {
+      try {
+        const data = await getRoles()
+
+        // Không hiển thị vai trò Bệnh nhân khi tạo nhân viên
+        setRoles(data.filter((role) => role.role_code !== 5))
+      } catch (error) {
+        console.error('Lỗi lấy danh sách vai trò:', error)
+      }
+    }
+
+    fetchRoles()
+  }, [])
 
   const [showPassword, setShowPassword] = useState(false)
 
   const {
     register,
+    control,
     handleSubmit,
     reset,
-    watch,
+    setError,
     formState: { errors, isSubmitting }
   } = useForm<UserFormData>({
     resolver: zodResolver(userSchema),
@@ -113,19 +123,17 @@ const UserCreate = () => {
     mode: 'onTouched',
 
     defaultValues: {
-      username: '',
-      password: '',
-      role: '',
       fullName: '',
-      phone: '',
       email: '',
-      identityNumber: '',
+      password: '',
+      phone: '',
+      cccd: '',
+      dateOfBirth: '',
+      gender: '',
       address: '',
-      description: ''
+      role_id: undefined
     }
   })
-
-  const description = watch('description') ?? ''
 
   // ====================================================
   // BACK
@@ -139,34 +147,39 @@ const UserCreate = () => {
   // SUBMIT
   // ====================================================
 
-  const onSubmit = async (data: UserFormData) => {
-    const payload = {
-      username: data.username,
-      password: data.password,
-      role: data.role,
-      fullName: data.fullName,
-      phone: data.phone,
-      email: data.email,
-      identityNumber: data.identityNumber,
-      address: data.address,
-      description: data.description
+  const handleCreate = async (data: UserFormData) => {
+    try {
+      const payload = {
+        fullName: data.fullName,
+        email: data.email,
+        password: data.password,
+        phone: data.phone,
+        cccd: data.cccd,
+        dateOfBirth: data.dateOfBirth || undefined,
+        gender: data.gender || undefined,
+        address: data.address,
+        role_id: data.role_id
+      }
+      await createUser(payload)
+
+      toast.success('Tạo Nhân viên thành công')
+      reset()
+      router.push('/users')
+    } catch (error) {
+      if (axios.isAxiosError(error)) {
+        const { field, message } = error.response?.data || {}
+
+        if (field && message) {
+          setError(field as keyof UserFormData, {
+            type: 'server',
+            message
+          })
+
+          return
+        }
+      }
+      toast.error('Tạo nhân viên thất bại')
     }
-
-    console.log('Create user:', payload)
-
-    // ==================================================
-    // TODO: CALL API
-    // ==================================================
-    //
-    // Sau này gọi API:
-    //
-    // await createUser(payload)
-    //
-    // Sau khi thành công:
-    //
-    // router.push('/users')
-
-    reset()
   }
 
   // ====================================================
@@ -318,7 +331,11 @@ const UserCreate = () => {
           {/* FORM */}
           {/* ============================================= */}
 
-          <Box component="form" noValidate onSubmit={handleSubmit(onSubmit)}>
+          <Box
+            component="form"
+            noValidate
+            onSubmit={handleSubmit(handleCreate)}
+          >
             {/* =========================================== */}
             {/* FORM CONTENT */}
             {/* =========================================== */}
@@ -341,25 +358,51 @@ const UserCreate = () => {
               }}
             >
               {/* ========================================= */}
-              {/* USERNAME */}
+              {/* FULL NAME */}
               {/* ========================================= */}
 
               <TextField
-                label="Tên đăng nhập"
+                label="Họ và tên"
                 required
                 fullWidth
-                autoFocus
-                placeholder="VD: nguyenvana"
-                {...register('username')}
-                error={Boolean(errors.username)}
-                helperText={errors.username?.message}
+                placeholder="Nhập họ và tên"
+                {...register('fullName')}
+                error={Boolean(errors.fullName)}
+                helperText={errors.fullName?.message}
                 slotProps={{
                   htmlInput: {
-                    minLength: 3,
-                    maxLength: 30
+                    minLength: 2,
+                    maxLength: 100
                   }
                 }}
               />
+
+              {/* ========================================= */}
+              {/* ROLE */}
+              {/* ========================================= */}
+
+              <TextField
+                select
+                label="vai trò"
+                required
+                fullWidth
+                defaultValue=""
+                {...register('role_id', {
+                  valueAsNumber: true
+                })}
+                error={Boolean(errors.role_id)}
+                helperText={errors.role_id?.message}
+              >
+                <MenuItem value="">
+                  <em>Chọn vai trò</em>
+                </MenuItem>
+
+                {roles.map((role) => (
+                  <MenuItem key={role.role_id} value={role.role_id}>
+                    {role.role_name}
+                  </MenuItem>
+                ))}
+              </TextField>
 
               {/* ========================================= */}
               {/* PASSWORD */}
@@ -404,53 +447,6 @@ const UserCreate = () => {
               />
 
               {/* ========================================= */}
-              {/* ROLE */}
-              {/* ========================================= */}
-
-              <TextField
-                select
-                label="Phân quyền"
-                required
-                fullWidth
-                defaultValue=""
-                {...register('role')}
-                error={Boolean(errors.role)}
-                helperText={errors.role?.message}
-              >
-                <MenuItem value="">
-                  <em>Chọn phân quyền</em>
-                </MenuItem>
-
-                <MenuItem value="admin">Quản trị viên</MenuItem>
-
-                <MenuItem value="doctor">Bác sĩ</MenuItem>
-
-                <MenuItem value="nurse">Điều dưỡng</MenuItem>
-
-                <MenuItem value="staff">Nhân viên</MenuItem>
-              </TextField>
-
-              {/* ========================================= */}
-              {/* FULL NAME */}
-              {/* ========================================= */}
-
-              <TextField
-                label="Họ và tên"
-                required
-                fullWidth
-                placeholder="Nhập họ và tên"
-                {...register('fullName')}
-                error={Boolean(errors.fullName)}
-                helperText={errors.fullName?.message}
-                slotProps={{
-                  htmlInput: {
-                    minLength: 2,
-                    maxLength: 100
-                  }
-                }}
-              />
-
-              {/* ========================================= */}
               {/* PHONE */}
               {/* ========================================= */}
 
@@ -458,20 +454,17 @@ const UserCreate = () => {
                 label="Số điện thoại"
                 required
                 fullWidth
-                placeholder="VD: 0901234567"
+                placeholder="0912.345.678"
                 {...register('phone', {
                   onChange: (event) => {
-                    event.target.value = event.target.value
-                      .replace(/\D/g, '')
-                      .slice(0, 10)
+                    event.target.value = formatPhone(event.target.value)
                   }
                 })}
                 error={Boolean(errors.phone)}
                 helperText={errors.phone?.message}
                 slotProps={{
                   htmlInput: {
-                    minLength: 10,
-                    maxLength: 10,
+                    maxLength: 12,
                     inputMode: 'numeric'
                   }
                 }}
@@ -505,34 +498,30 @@ const UserCreate = () => {
                 label="CCCD"
                 required
                 fullWidth
-                placeholder="Nhập 12 số CCCD"
-                {...register('identityNumber', {
+                placeholder="4444-4444-4444"
+                {...register('cccd', {
                   onChange: (event) => {
-                    event.target.value = event.target.value
-                      .replace(/\D/g, '')
-                      .slice(0, 12)
+                    event.target.value = formatCccd(event.target.value)
                   }
                 })}
-                error={Boolean(errors.identityNumber)}
-                helperText={errors.identityNumber?.message}
+                error={Boolean(errors.cccd)}
+                helperText={errors.cccd?.message}
                 slotProps={{
                   htmlInput: {
-                    minLength: 12,
-                    maxLength: 12,
+                    maxLength: 14,
                     inputMode: 'numeric'
                   }
                 }}
               />
-
               {/* ========================================= */}
               {/* ADDRESS */}
               {/* ========================================= */}
 
               <TextField
-                label="Nơi ở"
+                label="Địa Chỉ"
                 required
                 fullWidth
-                placeholder="Nhập nơi ở"
+                placeholder="Nhập Địa Chỉ"
                 {...register('address')}
                 error={Boolean(errors.address)}
                 helperText={errors.address?.message}
@@ -544,34 +533,54 @@ const UserCreate = () => {
                 }}
               />
 
-              {/* ========================================= */}
-              {/* DESCRIPTION */}
-              {/* ========================================= */}
+              <Controller
+                name="dateOfBirth"
+                control={control}
+                render={({ field }) => (
+                  <DatePicker
+                    label="Ngày sinh"
+                    format="DD/MM/YYYY"
+                    value={field.value ? dayjs(field.value) : null}
+                    onChange={(value) => {
+                      field.onChange(
+                        value && value.isValid()
+                          ? value.format('YYYY-MM-DD')
+                          : ''
+                      )
+                    }}
+                    slotProps={{
+                      textField: {
+                        fullWidth: true,
+                        error: Boolean(errors.dateOfBirth),
+                        helperText: errors.dateOfBirth?.message
+                      }
+                    }}
+                  />
+                )}
+              />
 
-              <TextField
-                label="Mô tả"
-                fullWidth
-                multiline
-                minRows={3}
-                maxRows={5}
-                placeholder="Nhập mô tả hoặc ghi chú..."
-                {...register('description')}
-                error={Boolean(errors.description)}
-                helperText={
-                  errors.description?.message ||
-                  `${description.length}/500 ký tự`
-                }
-                slotProps={{
-                  htmlInput: {
-                    maxLength: 500
-                  }
-                }}
-                sx={{
-                  gridColumn: {
-                    xs: 'auto',
-                    md: '1 / -1'
-                  }
-                }}
+              <Controller
+                name="gender"
+                control={control}
+                render={({ field }) => (
+                  <TextField
+                    {...field}
+                    select
+                    label="Giới tính"
+                    fullWidth
+                    value={field.value ?? ''}
+                    error={Boolean(errors.gender)}
+                    helperText={errors.gender?.message}
+                  >
+                    <MenuItem value="">
+                      <em>Chọn giới tính</em>
+                    </MenuItem>
+
+                    <MenuItem value="Nam">Nam</MenuItem>
+                    <MenuItem value="Nữ">Nữ</MenuItem>
+                    <MenuItem value="Khác">Khác</MenuItem>
+                  </TextField>
+                )}
               />
             </Box>
 
