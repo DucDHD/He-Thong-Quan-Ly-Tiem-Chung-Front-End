@@ -45,8 +45,6 @@ type Order = 'asc' | 'desc'
 
 type OrderBy = 'email' | 'fullName' | 'cccd' | 'address' | 'role' | 'status'
 
-type RoleFilter = 'all' | number
-
 const UserList = () => {
   const router = useRouter()
 
@@ -57,7 +55,6 @@ const UserList = () => {
   const [activeLoading, setActiveLoading] = useState(false)
 
   const [search, setSearch] = useState('')
-  const [roleFilter, setRoleFilter] = useState<RoleFilter>('all')
 
   const [order, setOrder] = useState<Order>('asc')
   const [orderBy, setOrderBy] = useState<OrderBy>('fullName')
@@ -166,10 +163,7 @@ const UserList = () => {
         (user.cccd?.includes(keyword) ?? false) ||
         (user.address?.toLowerCase().includes(keyword) ?? false)
 
-      const matchesRole =
-        roleFilter === 'all' || user.role?.role_code === roleFilter
-
-      return matchesSearch && matchesRole
+      return matchesSearch
     })
 
     return [...filtered].sort((a, b) => {
@@ -212,7 +206,7 @@ const UserList = () => {
 
       return order === 'asc' ? result : -result
     })
-  }, [users, search, roleFilter, order, orderBy])
+  }, [users, search, order, orderBy])
 
   // =========================
   // PAGINATION
@@ -404,32 +398,6 @@ const UserList = () => {
                   }
                 }}
               />
-
-              <FormControl
-                size="small"
-                sx={{
-                  minWidth: 180,
-                  bgcolor: '#fff'
-                }}
-              >
-                <Select
-                  value={roleFilter}
-                  onChange={(event) => {
-                    const value = event.target.value
-
-                    setRoleFilter(value === 'all' ? 'all' : Number(value))
-                    setPage(0)
-                  }}
-                >
-                  <MenuItem value="all">Tất cả vai trò</MenuItem>
-
-                  {roles.map((role) => (
-                    <MenuItem key={role.role_id} value={role.role_code}>
-                      {role.role_name}
-                    </MenuItem>
-                  ))}
-                </Select>
-              </FormControl>
             </Box>
           </Box>
 

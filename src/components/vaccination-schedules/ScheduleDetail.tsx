@@ -63,6 +63,11 @@ const ScheduleDetail = ({ scheduleId }: ScheduleDetailProps) => {
   const currentPage = searchParams.get('currentPage') || '1'
 
   const [customers, setCustomers] = useState<VaccinationBookingDetail[]>([])
+
+  const [schedule, setSchedule] = useState<VaccinationBookingDetail | null>(
+    null
+  )
+
   const [search, setSearch] = useState('')
   const [page, setPage] = useState(0)
   const [loading, setLoading] = useState(true)
@@ -96,7 +101,9 @@ const ScheduleDetail = ({ scheduleId }: ScheduleDetailProps) => {
 
         const data = await getVaccinationBookingDetailAPI(Number(scheduleId))
 
-        setCustomers(data)
+        setSchedule(data[0] ?? null)
+
+        setCustomers(data.filter((item) => item.booking_id != null))
       } catch (error) {
         console.error(error)
       } finally {
@@ -132,14 +139,6 @@ const ScheduleDetail = ({ scheduleId }: ScheduleDetailProps) => {
       const remainingCustomers = customers.filter(
         (customer) => customer.booking_id !== cancelCustomer.booking_id
       )
-
-      if (remainingCustomers.length === 0) {
-        toast.success('Hủy đăng ký tiêm thành công')
-
-        router.push(`/vaccination-schedules?page=${currentPage}`)
-
-        return
-      }
 
       setCustomers(remainingCustomers)
       setCancelCustomer(null)
@@ -219,8 +218,6 @@ const ScheduleDetail = ({ scheduleId }: ScheduleDetailProps) => {
   // ====================================================
   // SCHEDULE
   // ====================================================
-
-  const schedule = customers[0]
 
   // ====================================================
   // SORT

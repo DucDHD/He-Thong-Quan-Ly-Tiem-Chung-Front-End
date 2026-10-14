@@ -7,6 +7,7 @@ import FeedbackOutlinedIcon from '@mui/icons-material/FeedbackOutlined'
 import Inventory2OutlinedIcon from '@mui/icons-material/Inventory2Outlined'
 import MedicalServicesOutlinedIcon from '@mui/icons-material/MedicalServicesOutlined'
 import PeopleAltOutlinedIcon from '@mui/icons-material/PeopleAltOutlined'
+import VaccinesOutlinedIcon from '@mui/icons-material/CoronavirusOutlined'
 import { Box, Card, CardContent, Stack, Typography } from '@mui/material'
 import { useRouter } from 'next/navigation'
 import { useTheme } from '@mui/material/styles'
@@ -15,26 +16,26 @@ import { useAuth } from '@/contexts/AuthContext'
 const featureCards = [
   {
     title: 'Tài chính',
-    description: 'Quản lý thu chi và thông tin tài chính',
-    path: '/finance',
+    description: 'Giao dịch với Khánh Hàng',
+    path: '/finance//transaction-customer',
     icon: <AccountBalanceWalletOutlinedIcon />
   },
   {
     title: 'Kho vaccine',
     description: 'Theo dõi vaccine và quản lý kho bãi',
-    path: '/warehouse',
+    path: '/inventory',
     icon: <Inventory2OutlinedIcon />
   },
   {
     title: 'Nhân viên y tế',
     description: 'Quản lý thông tin nhân viên y tế',
-    path: '/medical-staff',
+    path: '/users',
     icon: <MedicalServicesOutlinedIcon />
   },
   {
-    title: 'Chăm sóc khách hàng',
-    description: 'Quản lý và hỗ trợ khách hàng',
-    path: '/customer-care',
+    title: 'Quản lý Khánh hàng',
+    description: 'Quản lý thông tin khách hàng ',
+    path: '/customer',
     icon: <PeopleAltOutlinedIcon />
   },
   {
@@ -44,10 +45,10 @@ const featureCards = [
     icon: <CalendarMonthOutlinedIcon />
   },
   {
-    title: 'Feedback khách hàng',
-    description: 'Tiếp nhận và quản lý phản hồi',
-    path: '/feedback',
-    icon: <FeedbackOutlinedIcon />
+    title: 'Quản Lý Vaccine',
+    description: 'Thông tin vaccine',
+    path: '/vaccines',
+    icon: <VaccinesOutlinedIcon />
   }
 ]
 

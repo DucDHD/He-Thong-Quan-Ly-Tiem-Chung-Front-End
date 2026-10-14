@@ -39,6 +39,11 @@ export const getUsers = async () => {
   return response.data
 }
 
+export const getCustomer = async () => {
+  const response = await api.get<User[]>('/users/customer')
+  return response.data
+}
+
 // Chi tiết nhân viên
 export const getUserById = async (id: number) => {
   const response = await api.get<User>(`/users/${id}`)

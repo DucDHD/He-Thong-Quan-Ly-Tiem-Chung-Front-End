@@ -335,18 +335,25 @@ const Profile = () => {
                     gap: 2
                   }}
                 >
-                  <TextField
-                    label="Họ và tên"
-                    fullWidth
-                    size="small"
-                    {...register('fullName')}
-                    error={Boolean(errors.fullName)}
-                    helperText={errors.fullName?.message}
-                    slotProps={{
-                      htmlInput: {
-                        maxLength: 100
-                      }
-                    }}
+                  <Controller
+                    name="fullName"
+                    control={control}
+                    render={({ field }) => (
+                      <TextField
+                        {...field}
+                        value={field.value ?? ''}
+                        label="Họ và tên"
+                        fullWidth
+                        size="small"
+                        error={Boolean(errors.fullName)}
+                        helperText={errors.fullName?.message}
+                        slotProps={{
+                          htmlInput: {
+                            maxLength: 100
+                          }
+                        }}
+                      />
+                    )}
                   />
 
                   <Controller
@@ -357,13 +364,11 @@ const Profile = () => {
                         label="Ngày sinh"
                         format="DD/MM/YYYY"
                         value={field.value ? dayjs(field.value) : null}
-                        onChange={(value) => {
+                        onChange={(value) =>
                           field.onChange(
-                            value && value.isValid()
-                              ? value.format('YYYY-MM-DD')
-                              : ''
+                            value?.isValid() ? value.format('YYYY-MM-DD') : ''
                           )
-                        }}
+                        }
                         slotProps={{
                           textField: {
                             fullWidth: true,
@@ -390,46 +395,79 @@ const Profile = () => {
                         error={Boolean(errors.gender)}
                         helperText={errors.gender?.message}
                       >
+                        <MenuItem value="">
+                          <em>Chọn giới tính</em>
+                        </MenuItem>
+
                         <MenuItem value="Nam">Nam</MenuItem>
-
                         <MenuItem value="Nữ">Nữ</MenuItem>
-
                         <MenuItem value="Khác">Khác</MenuItem>
                       </TextField>
                     )}
                   />
 
-                  <TextField
-                    label="Số điện thoại"
-                    fullWidth
-                    size="small"
-                    {...register('phone')}
-                    error={Boolean(errors.phone)}
-                    helperText={errors.phone?.message}
-                    slotProps={{
-                      htmlInput: {
-                        maxLength: 10,
-                        inputMode: 'numeric'
-                      }
-                    }}
+                  <Controller
+                    name="phone"
+                    control={control}
+                    render={({ field }) => (
+                      <TextField
+                        name={field.name}
+                        inputRef={field.ref}
+                        onBlur={field.onBlur}
+                        label="Số điện thoại"
+                        fullWidth
+                        size="small"
+                        placeholder="0912.345.678"
+                        value={formatPhone(field.value || '')}
+                        onChange={(event) => {
+                          const value = event.target.value
+                            .replace(/\D/g, '')
+                            .slice(0, 10)
+
+                          field.onChange(value)
+                        }}
+                        error={Boolean(errors.phone)}
+                        helperText={errors.phone?.message}
+                        slotProps={{
+                          htmlInput: {
+                            maxLength: 12,
+                            inputMode: 'numeric'
+                          }
+                        }}
+                      />
+                    )}
                   />
-                  <TextField
-                    label="CCCD"
-                    fullWidth
-                    size="small"
-                    {...register('cccd', {
-                      onChange: (e) => {
-                        e.target.value = e.target.value.replace(/\D/g, '')
-                      }
-                    })}
-                    error={Boolean(errors.cccd)}
-                    helperText={errors.cccd?.message}
-                    slotProps={{
-                      htmlInput: {
-                        maxLength: 12,
-                        inputMode: 'numeric'
-                      }
-                    }}
+
+                  <Controller
+                    name="cccd"
+                    control={control}
+                    render={({ field }) => (
+                      <TextField
+                        name={field.name}
+                        inputRef={field.ref}
+                        onBlur={field.onBlur}
+                        label="CCCD"
+                        fullWidth
+                        size="small"
+                        placeholder="4444-4444-4444"
+                        value={formatCccd(field.value || '')}
+                        onChange={(event) => {
+                          const value = event.target.value
+                            .replace(/\D/g, '')
+                            .slice(0, 12)
+
+                          field.onChange(value)
+                        }}
+                        error={Boolean(errors.cccd)}
+                        helperText={errors.cccd?.message}
+                        slotProps={{
+                          htmlInput: {
+                            maxLength: 14,
+                            inputMode: 'numeric'
+                          }
+                        }}
+                      />
+                    )}
                   />
 
                   <TextField
@@ -440,23 +478,30 @@ const Profile = () => {
                     size="small"
                   />
 
-                  <TextField
-                    label="Địa chỉ"
-                    fullWidth
-                    size="small"
-                    {...register('address')}
-                    error={Boolean(errors.address)}
-                    helperText={errors.address?.message}
-                    slotProps={{
-                      htmlInput: {
-                        maxLength: 255
-                      }
-                    }}
+                  <Controller
+                    name="address"
+                    control={control}
+                    render={({ field }) => (
+                      <TextField
+                        {...field}
+                        value={field.value ?? ''}
+                        label="Địa chỉ"
+                        fullWidth
+                        size="small"
+                        error={Boolean(errors.address)}
+                        helperText={errors.address?.message}
+                        slotProps={{
+                          htmlInput: {
+                            maxLength: 255
+                          }
+                        }}
+                      />
+                    )}
                   />
 
                   <TextField
                     label="Vai trò"
-                    value={user?.role.role_name || ''}
+                    value={user?.role?.role_name ?? ''}
                     disabled
                     fullWidth
                     size="small"

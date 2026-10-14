@@ -74,7 +74,7 @@ const scheduleSchema = z.object({
     .number({ message: 'Vui lòng chọn địa điểm tiêm' })
     .min(1, 'Vui lòng chọn địa điểm tiêm'),
 
-  note: z.string().trim().max(500, 'Ghi chú không được vượt quá 500 ký tự')
+  note: z.string().trim()
 })
 
 type ScheduleFormData = z.infer<typeof scheduleSchema>
@@ -103,14 +103,15 @@ const ScheduleUpdate = ({ id }: ScheduleUpdateProps) => {
     formState: { errors, isSubmitting }
   } = useForm<ScheduleFormData>({
     resolver: zodResolver(scheduleSchema),
+    shouldFocusError: false,
     defaultValues: {
       vaccinationDate: '',
       vaccinationTime: '',
-      vaccine_id: undefined,
+      vaccine_id: 0,
       capacity: 1,
       age: '',
-      user_id: undefined,
-      location_id: undefined,
+      user_id: 0,
+      location_id: 0,
       note: ''
     }
   })
@@ -186,10 +187,15 @@ const ScheduleUpdate = ({ id }: ScheduleUpdateProps) => {
         const { field, message } = error.response?.data || {}
 
         if (field && message) {
-          setError(field as keyof ScheduleFormData, {
-            type: 'server',
-            message
-          })
+          setError(
+            field === 'stock_quantity'
+              ? 'vaccine_id'
+              : (field as keyof ScheduleFormData),
+            {
+              type: 'server',
+              message
+            }
+          )
 
           return
         }
@@ -356,7 +362,9 @@ const ScheduleUpdate = ({ id }: ScheduleUpdateProps) => {
                     format="DD/MM/YYYY"
                     value={field.value ? dayjs(field.value) : null}
                     onChange={(value) =>
-                      field.onChange(value?.format('YYYY-MM-DD') ?? '')
+                      field.onChange(
+                        value?.isValid() ? value.format('YYYY-MM-DD') : ''
+                      )
                     }
                     slotProps={{
                       textField: {
@@ -384,7 +392,9 @@ const ScheduleUpdate = ({ id }: ScheduleUpdateProps) => {
                       field.value ? dayjs(`2000-01-01T${field.value}`) : null
                     }
                     onChange={(value) =>
-                      field.onChange(value?.format('HH:mm') ?? '')
+                      field.onChange(
+                        value?.isValid() ? value.format('HH:mm') : ''
+                      )
                     }
                     slotProps={{
                       textField: {
@@ -408,22 +418,25 @@ const ScheduleUpdate = ({ id }: ScheduleUpdateProps) => {
                     select
                     fullWidth
                     required
+                    name={field.name}
+                    inputRef={field.ref}
+                    onBlur={field.onBlur}
                     label="Loại vaccine"
-                    value={field.value ?? ''}
-                    onChange={(event) =>
+                    value={field.value ?? 0}
+                    onChange={(event) => {
                       field.onChange(Number(event.target.value))
-                    }
+                    }}
                     error={Boolean(errors.vaccine_id)}
                     helperText={errors.vaccine_id?.message}
                   >
-                    <MenuItem value="">
+                    <MenuItem value={0}>
                       <em>Chọn loại vaccine</em>
                     </MenuItem>
 
                     {vaccines.map((vaccine) => (
                       <MenuItem
                         key={vaccine.vaccine_id}
-                        value={vaccine.vaccine_id}
+                        value={Number(vaccine.vaccine_id)}
                       >
                         {vaccine.vaccine_name}
                       </MenuItem>
@@ -434,33 +447,60 @@ const ScheduleUpdate = ({ id }: ScheduleUpdateProps) => {
 
               {/* CAPACITY */}
 
-              <TextField
-                fullWidth
-                required
-                type="number"
-                label="Số lượng vaccine"
-                {...register('capacity', {
-                  valueAsNumber: true
-                })}
-                error={Boolean(errors.capacity)}
-                helperText={errors.capacity?.message}
-                slotProps={{
-                  htmlInput: {
-                    min: 1
-                  }
-                }}
+              <Controller
+                name="capacity"
+                control={control}
+                render={({ field }) => (
+                  <TextField
+                    name={field.name}
+                    inputRef={field.ref}
+                    onBlur={field.onBlur}
+                    fullWidth
+                    required
+                    type="number"
+                    label="Số lượng vaccine"
+                    value={Number.isNaN(field.value) ? '' : (field.value ?? '')}
+                    onChange={(event) =>
+                      field.onChange(
+                        event.target.value === ''
+                          ? Number.NaN
+                          : Number(event.target.value)
+                      )
+                    }
+                    error={Boolean(errors.capacity)}
+                    helperText={errors.capacity?.message}
+                    slotProps={{
+                      htmlInput: {
+                        min: 1,
+                        step: 1
+                      }
+                    }}
+                  />
+                )}
               />
 
               {/* AGE */}
 
-              <TextField
-                fullWidth
-                required
-                label="Độ tuổi"
-                placeholder="Ví dụ: 18 tuổi trở lên"
-                {...register('age')}
-                error={Boolean(errors.age)}
-                helperText={errors.age?.message}
+              <Controller
+                name="age"
+                control={control}
+                render={({ field }) => (
+                  <TextField
+                    {...field}
+                    value={field.value ?? ''}
+                    fullWidth
+                    required
+                    label="Độ tuổi"
+                    placeholder="Ví dụ: 18 tuổi trở lên"
+                    error={Boolean(errors.age)}
+                    helperText={errors.age?.message}
+                    slotProps={{
+                      htmlInput: {
+                        maxLength: 100
+                      }
+                    }}
+                  />
+                )}
               />
 
               {/* STAFF */}
@@ -473,15 +513,18 @@ const ScheduleUpdate = ({ id }: ScheduleUpdateProps) => {
                     select
                     fullWidth
                     required
+                    name={field.name}
+                    inputRef={field.ref}
+                    onBlur={field.onBlur}
                     label="Nhân viên y tế"
-                    value={field.value ?? ''}
-                    onChange={(event) =>
+                    value={field.value ?? 0}
+                    onChange={(event) => {
                       field.onChange(Number(event.target.value))
-                    }
+                    }}
                     error={Boolean(errors.user_id)}
                     helperText={errors.user_id?.message}
                   >
-                    <MenuItem value="">
+                    <MenuItem value={0}>
                       <em>Chọn nhân viên y tế</em>
                     </MenuItem>
 
@@ -493,6 +536,7 @@ const ScheduleUpdate = ({ id }: ScheduleUpdateProps) => {
                   </TextField>
                 )}
               />
+
               <Controller
                 name="location_id"
                 control={control}
@@ -501,22 +545,25 @@ const ScheduleUpdate = ({ id }: ScheduleUpdateProps) => {
                     select
                     fullWidth
                     required
+                    name={field.name}
+                    inputRef={field.ref}
+                    onBlur={field.onBlur}
                     label="Địa điểm tiêm"
-                    value={field.value ?? ''}
-                    onChange={(event) =>
+                    value={field.value ?? 0}
+                    onChange={(event) => {
                       field.onChange(Number(event.target.value))
-                    }
+                    }}
                     error={Boolean(errors.location_id)}
                     helperText={errors.location_id?.message}
                   >
-                    <MenuItem value="">
+                    <MenuItem value={0}>
                       <em>Chọn địa điểm tiêm</em>
                     </MenuItem>
 
                     {locations.map((location) => (
                       <MenuItem
                         key={location.location_id}
-                        value={location.location_id}
+                        value={Number(location.location_id)}
                       >
                         {location.locationName} - {location.address}
                       </MenuItem>
@@ -527,21 +574,28 @@ const ScheduleUpdate = ({ id }: ScheduleUpdateProps) => {
 
               {/* NOTE */}
 
-              <TextField
-                fullWidth
-                multiline
-                minRows={4}
-                label="Ghi chú"
-                placeholder="Nhập ghi chú..."
-                {...register('note')}
-                error={Boolean(errors.note)}
-                helperText={errors.note?.message}
-                sx={{
-                  gridColumn: {
-                    xs: 'auto',
-                    md: '1 / -1'
-                  }
-                }}
+              <Controller
+                name="note"
+                control={control}
+                render={({ field }) => (
+                  <TextField
+                    {...field}
+                    value={field.value ?? ''}
+                    fullWidth
+                    multiline
+                    minRows={4}
+                    label="Ghi chú"
+                    placeholder="Nhập ghi chú..."
+                    error={Boolean(errors.note)}
+                    helperText={errors.note?.message}
+                    sx={{
+                      gridColumn: {
+                        xs: 'auto',
+                        md: '1 / -1'
+                      }
+                    }}
+                  />
+                )}
               />
             </Box>
 

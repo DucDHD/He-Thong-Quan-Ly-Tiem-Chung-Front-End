@@ -1,5 +1,4 @@
 'use client'
-
 import {
   Box,
   Button,
@@ -18,28 +17,21 @@ import {
   TextField,
   Typography
 } from '@mui/material'
-
 import AddOutlinedIcon from '@mui/icons-material/AddOutlined'
 import DeleteOutlineOutlinedIcon from '@mui/icons-material/DeleteOutlineOutlined'
 import EditOutlinedIcon from '@mui/icons-material/EditOutlined'
 import SearchOutlinedIcon from '@mui/icons-material/SearchOutlined'
 import VaccinesOutlinedIcon from '@mui/icons-material/VaccinesOutlined'
 import VisibilityOutlinedIcon from '@mui/icons-material/VisibilityOutlined'
-
 import { useEffect, useMemo, useState } from 'react'
-
 import { useRouter, useSearchParams } from 'next/navigation'
-
 import { toast } from 'react-toastify'
-
 import {
   activeVaccineAPI,
   getVaccinesAPI,
   type Vaccine
 } from '@/services/vaccine.service'
-
 type Order = 'asc' | 'desc'
-
 type OrderBy =
   | 'vaccine_name'
   | 'vaccine_type'
@@ -47,40 +39,26 @@ type OrderBy =
   | 'country'
   | 'vaccination_age'
   | 'price'
-
 const VaccineList = () => {
   const router = useRouter()
   const searchParams = useSearchParams()
-
   const [vaccines, setVaccines] = useState<Vaccine[]>([])
-
   const [search, setSearch] = useState('')
-
   const [order, setOrder] = useState<Order>('asc')
-
   const [orderBy, setOrderBy] = useState<OrderBy>('vaccine_name')
-
   const [deleteVaccine, setDeleteVaccine] = useState<Vaccine | null>(null)
-
   const [deleteLoading, setDeleteLoading] = useState(false)
-
   const pageFromUrl = Number(searchParams.get('page') || '1')
-
   const [page, setPage] = useState(Math.max(pageFromUrl - 1, 0))
-
   const [rowsPerPage, setRowsPerPage] = useState(5)
-
   // =========================
   // GET VACCINES
   // =========================
-
   useEffect(() => {
     let isMounted = true
-
     const fetchData = async () => {
       try {
         const data = await getVaccinesAPI()
-
         if (isMounted) {
           setVaccines(data)
         }
@@ -88,42 +66,31 @@ const VaccineList = () => {
         console.error('Lỗi lấy danh sách vaccine:', error)
       }
     }
-
     void fetchData()
-
     return () => {
       isMounted = false
     }
   }, [])
-
   // =========================
   // DELETE DIALOG
   // =========================
-
   const handleOpenDeleteConfirm = (vaccine: Vaccine) => {
     setDeleteVaccine(vaccine)
   }
-
   const handleCloseDeleteConfirm = () => {
     if (deleteLoading) return
-
     setDeleteVaccine(null)
   }
-
   const handleConfirmDelete = async () => {
     if (!deleteVaccine) return
-
     try {
       setDeleteLoading(true)
-
       await activeVaccineAPI(deleteVaccine.vaccine_id, false)
-
       setVaccines((prev) =>
         prev.filter(
           (vaccine) => vaccine.vaccine_id !== deleteVaccine.vaccine_id
         )
       )
-
       setDeleteVaccine(null)
       toast.success('Xóa vaccine thành công')
     } catch {
@@ -132,23 +99,17 @@ const VaccineList = () => {
       setDeleteLoading(false)
     }
   }
-
   const handleSort = (property: OrderBy) => {
     const isAsc = orderBy === property && order === 'asc'
-
     setOrder(isAsc ? 'desc' : 'asc')
-
     setOrderBy(property)
     setPage(0)
   }
-
   // =========================
   // FILTER + SEARCH + SORT
   // =========================
-
   const filteredVaccines = useMemo(() => {
     const keyword = search.trim().toLowerCase()
-
     const filtered = vaccines.filter((vaccine) => {
       return (
         !keyword ||
@@ -159,103 +120,69 @@ const VaccineList = () => {
         (vaccine.license_number?.toLowerCase().includes(keyword) ?? false)
       )
     })
-
     return [...filtered].sort((a, b) => {
       let valueA: string | number = ''
-
       let valueB: string | number = ''
-
       switch (orderBy) {
         case 'vaccine_name':
           valueA = a.vaccine_name.toLowerCase()
-
           valueB = b.vaccine_name.toLowerCase()
-
           break
-
         case 'vaccine_type':
           valueA = a.vaccine_type.toLowerCase()
-
           valueB = b.vaccine_type.toLowerCase()
-
           break
-
         case 'manufacturer':
           valueA = a.manufacturer.toLowerCase()
-
           valueB = b.manufacturer.toLowerCase()
-
           break
-
         case 'country':
           valueA = a.country?.toLowerCase() || ''
-
           valueB = b.country?.toLowerCase() || ''
-
           break
-
         case 'vaccination_age':
           valueA = a.vaccination_age?.toLowerCase() || ''
-
           valueB = b.vaccination_age?.toLowerCase() || ''
-
           break
-
         case 'price':
           valueA = a.price ?? 0
           valueB = b.price ?? 0
-
           break
       }
-
       if (typeof valueA === 'number' && typeof valueB === 'number') {
         return order === 'asc' ? valueA - valueB : valueB - valueA
       }
-
       const result = String(valueA).localeCompare(String(valueB), 'vi')
-
       return order === 'asc' ? result : -result
     })
   }, [vaccines, search, order, orderBy])
-
   // =========================
   // PAGINATION
   // =========================
-
   const paginatedVaccines = useMemo(() => {
     const start = page * rowsPerPage
-
     return filteredVaccines.slice(start, start + rowsPerPage)
   }, [filteredVaccines, page, rowsPerPage])
-
   const handleChangePage = (_event: unknown, newPage: number) => {
     setPage(newPage)
-
     router.replace(`/vaccines?page=${newPage + 1}`)
   }
-
   const handleChangeRowsPerPage = (
     event: React.ChangeEvent<HTMLInputElement>
   ) => {
     setRowsPerPage(Number(event.target.value))
-
     setPage(0)
-
     router.replace('/vaccines?page=1')
   }
-
   // =========================
   // FORMAT PRICE
   // =========================
-
   const formatPrice = (price: number | null) => {
     if (price === null) {
       return '-'
     }
-
     return `${new Intl.NumberFormat('vi-VN').format(price)} đ`
   }
-
   return (
     <Box
       component="main"
@@ -292,7 +219,6 @@ const VaccineList = () => {
           {/* ========================= */}
           {/* HEADER */}
           {/* ========================= */}
-
           <Box
             sx={{
               px: 2.5,
@@ -332,7 +258,6 @@ const VaccineList = () => {
               >
                 <VaccinesOutlinedIcon />
               </Box>
-
               <Box>
                 <Typography
                   variant="h5"
@@ -343,13 +268,11 @@ const VaccineList = () => {
                 >
                   Danh sách Vaccine
                 </Typography>
-
                 <Typography variant="body2" color="text.secondary">
                   Quản lý thông tin vaccine sử dụng trong hệ thống
                 </Typography>
               </Box>
             </Box>
-
             <Button
               variant="contained"
               startIcon={<AddOutlinedIcon />}
@@ -365,11 +288,9 @@ const VaccineList = () => {
               Thêm Vaccine
             </Button>
           </Box>
-
           {/* ========================= */}
           {/* TOOLBAR */}
           {/* ========================= */}
-
           <Box
             sx={{
               px: 2.5,
@@ -397,7 +318,6 @@ const VaccineList = () => {
               value={search}
               onChange={(event) => {
                 setSearch(event.target.value)
-
                 setPage(0)
               }}
               placeholder="Tìm tên, loại, nhà sản xuất..."
@@ -419,16 +339,15 @@ const VaccineList = () => {
               }}
             />
           </Box>
-
           {/* ========================= */}
           {/* TABLE */}
           {/* ========================= */}
-
           <TableContainer
             sx={{
               width: '100%',
               flex: 1,
               minHeight: 0,
+              minWidth: 0,
               overflowX: 'auto',
               overflowY: 'auto'
             }}
@@ -436,13 +355,29 @@ const VaccineList = () => {
             <Table
               stickyHeader
               sx={{
-                minWidth: 1200
+                minWidth: 1350,
+                tableLayout: 'fixed',
+                '& .MuiTableCell-root': {
+                  px: 1.5,
+                  py: 1.75,
+                  verticalAlign: 'middle'
+                },
+                '& .MuiTableCell-head': { fontWeight: 600, bgcolor: '#f5f7fb' }
               }}
             >
+              <colgroup>
+                <col style={{ width: '4%' }} />
+                <col style={{ width: '11%' }} />
+                <col style={{ width: '17%' }} />
+                <col style={{ width: '14%' }} />
+                <col style={{ width: '8%' }} />
+                <col style={{ width: '16%' }} />
+                <col style={{ width: '10%' }} />
+                <col style={{ width: '20%' }} />
+              </colgroup>
               <TableHead>
                 <TableRow>
                   {/* STT */}
-
                   <TableCell
                     sx={{
                       fontWeight: 600,
@@ -451,9 +386,7 @@ const VaccineList = () => {
                   >
                     STT
                   </TableCell>
-
                   {/* NAME */}
-
                   <TableCell>
                     <TableSortLabel
                       active={orderBy === 'vaccine_name'}
@@ -470,9 +403,7 @@ const VaccineList = () => {
                       </Typography>
                     </TableSortLabel>
                   </TableCell>
-
                   {/* TYPE */}
-
                   <TableCell>
                     <TableSortLabel
                       active={orderBy === 'vaccine_type'}
@@ -489,9 +420,7 @@ const VaccineList = () => {
                       </Typography>
                     </TableSortLabel>
                   </TableCell>
-
                   {/* MANUFACTURER */}
-
                   <TableCell>
                     <TableSortLabel
                       active={orderBy === 'manufacturer'}
@@ -508,9 +437,7 @@ const VaccineList = () => {
                       </Typography>
                     </TableSortLabel>
                   </TableCell>
-
                   {/* COUNTRY */}
-
                   <TableCell>
                     <TableSortLabel
                       active={orderBy === 'country'}
@@ -527,9 +454,7 @@ const VaccineList = () => {
                       </Typography>
                     </TableSortLabel>
                   </TableCell>
-
                   {/* AGE */}
-
                   <TableCell>
                     <TableSortLabel
                       active={orderBy === 'vaccination_age'}
@@ -546,9 +471,7 @@ const VaccineList = () => {
                       </Typography>
                     </TableSortLabel>
                   </TableCell>
-
                   {/* PRICE */}
-
                   <TableCell>
                     <TableSortLabel
                       active={orderBy === 'price'}
@@ -565,9 +488,7 @@ const VaccineList = () => {
                       </Typography>
                     </TableSortLabel>
                   </TableCell>
-
                   {/* ACTION */}
-
                   <TableCell
                     align="center"
                     sx={{
@@ -579,78 +500,92 @@ const VaccineList = () => {
                   </TableCell>
                 </TableRow>
               </TableHead>
-
               <TableBody>
                 {paginatedVaccines.map((vaccine, index) => (
                   <TableRow key={vaccine.vaccine_id} hover>
                     {/* STT */}
-
                     <TableCell>{page * rowsPerPage + index + 1}</TableCell>
-
                     {/* NAME */}
-
                     <TableCell
                       sx={{
                         fontWeight: 500,
                         whiteSpace: 'nowrap'
                       }}
                     >
-                      {vaccine.vaccine_name}
+                      <Typography
+                        variant="body2"
+                        noWrap
+                        title={vaccine.vaccine_name}
+                      >
+                        {vaccine.vaccine_name}
+                      </Typography>
                     </TableCell>
-
                     {/* TYPE */}
-
                     <TableCell
                       sx={{
                         whiteSpace: 'nowrap'
                       }}
                     >
-                      {vaccine.vaccine_type}
+                      <Typography
+                        variant="body2"
+                        noWrap
+                        title={vaccine.vaccine_type}
+                      >
+                        {vaccine.vaccine_type}
+                      </Typography>
                     </TableCell>
-
                     {/* MANUFACTURER */}
-
                     <TableCell
                       sx={{
                         whiteSpace: 'nowrap'
                       }}
                     >
-                      {vaccine.manufacturer}
+                      <Typography
+                        variant="body2"
+                        noWrap
+                        title={vaccine.manufacturer}
+                      >
+                        {vaccine.manufacturer}
+                      </Typography>
                     </TableCell>
-
                     {/* COUNTRY */}
-
-                    <TableCell>{vaccine.country || '-'}</TableCell>
-
-                    {/* AGE */}
-
-                    <TableCell
-                      sx={{
-                        whiteSpace: 'nowrap'
-                      }}
-                    >
-                      {vaccine.vaccination_age || '-'}
+                    <TableCell>
+                      <Typography
+                        variant="body2"
+                        noWrap
+                        title={vaccine.country || '-'}
+                      >
+                        {vaccine.country || '-'}
+                      </Typography>
                     </TableCell>
-
-                    {/* PRICE */}
-
+                    {/* AGE */}
                     <TableCell
                       sx={{
                         whiteSpace: 'nowrap'
                       }}
                     >
+                      <Typography
+                        variant="body2"
+                        noWrap
+                        title={vaccine.vaccination_age || '-'}
+                      >
+                        {vaccine.vaccination_age || '-'}
+                      </Typography>
+                    </TableCell>
+                    {/* PRICE */}
+                    <TableCell align="left" sx={{ whiteSpace: 'nowrap' }}>
                       {formatPrice(vaccine.price)}
                     </TableCell>
-
                     {/* ACTION */}
-
                     <TableCell align="center">
                       <Box
                         sx={{
                           display: 'flex',
                           alignItems: 'center',
                           justifyContent: 'center',
-                          gap: 1
+                          gap: 0.75,
+                          flexWrap: 'nowrap',
+                          whiteSpace: 'nowrap'
                         }}
                       >
                         <Button
@@ -692,7 +627,6 @@ const VaccineList = () => {
                         >
                           Sửa
                         </Button>
-
                         <Button
                           size="small"
                           variant="outlined"
@@ -710,9 +644,7 @@ const VaccineList = () => {
                     </TableCell>
                   </TableRow>
                 ))}
-
                 {/* EMPTY */}
-
                 {paginatedVaccines.length === 0 && (
                   <TableRow>
                     <TableCell
@@ -729,7 +661,6 @@ const VaccineList = () => {
                           mb: 1
                         }}
                       />
-
                       <Typography
                         sx={{
                           fontWeight: 600
@@ -737,7 +668,6 @@ const VaccineList = () => {
                       >
                         Không tìm thấy vaccine
                       </Typography>
-
                       <Typography variant="body2" color="text.secondary">
                         Không có dữ liệu phù hợp với điều kiện tìm kiếm.
                       </Typography>
@@ -747,11 +677,9 @@ const VaccineList = () => {
               </TableBody>
             </Table>
           </TableContainer>
-
           {/* ========================= */}
           {/* PAGINATION */}
           {/* ========================= */}
-
           <Box
             sx={{
               flexShrink: 0,
@@ -774,16 +702,13 @@ const VaccineList = () => {
                   1,
                   Math.ceil(filteredVaccines.length / rowsPerPage)
                 )
-
                 return `Trang ${page + 1} / ${totalPages}`
               }}
             />
           </Box>
-
           {/* ========================= */}
           {/* DELETE CONFIRM */}
           {/* ========================= */}
-
           <Dialog
             open={Boolean(deleteVaccine)}
             onClose={handleCloseDeleteConfirm}
@@ -814,7 +739,6 @@ const VaccineList = () => {
               >
                 Xóa Vaccine?
               </Typography>
-
               <Typography
                 sx={{
                   fontSize: 14,
@@ -834,7 +758,6 @@ const VaccineList = () => {
                 </Box>{' '}
                 sẽ không còn hiển thị trong danh sách sau khi xóa.
               </Typography>
-
               <Box
                 sx={{
                   display: 'flex',
@@ -858,7 +781,6 @@ const VaccineList = () => {
                 >
                   Hủy
                 </Button>
-
                 <Button
                   onClick={handleConfirmDelete}
                   disabled={deleteLoading}
@@ -886,5 +808,4 @@ const VaccineList = () => {
     </Box>
   )
 }
-
 export default VaccineList

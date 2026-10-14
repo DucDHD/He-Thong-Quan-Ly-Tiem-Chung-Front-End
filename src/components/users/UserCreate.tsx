@@ -59,13 +59,18 @@ const userSchema = z.object({
   phone: z
     .string()
     .min(1, 'Vui lòng nhập số điện thoại')
-    .regex(/^0\d{9}$/, 'Số điện thoại phải gồm 10 số và bắt đầu bằng 0'),
+    .refine(
+      (value) => /^0\d{9}$/.test(value.replace(/\D/g, '')),
+      'Số điện thoại phải gồm 10 số và bắt đầu bằng 0'
+    ),
 
   cccd: z
     .string()
     .min(1, 'Vui lòng nhập CCCD')
-    .regex(/^\d{12}$/, 'CCCD phải gồm đúng 12 chữ số'),
-
+    .refine(
+      (value) => /^\d{12}$/.test(value.replace(/\D/g, '')),
+      'CCCD phải gồm đúng 12 chữ số'
+    ),
   dateOfBirth: z.string().min(1, 'Vui lòng chọn ngày sinh'),
 
   gender: z.string().min(1, 'Vui lòng chọn giới tính'),
@@ -120,7 +125,8 @@ const UserCreate = () => {
   } = useForm<UserFormData>({
     resolver: zodResolver(userSchema),
 
-    mode: 'onTouched',
+    mode: 'onChange',
+    reValidateMode: 'onChange',
 
     defaultValues: {
       fullName: '',
@@ -153,8 +159,8 @@ const UserCreate = () => {
         fullName: data.fullName,
         email: data.email,
         password: data.password,
-        phone: data.phone,
-        cccd: data.cccd,
+        phone: data.phone.replace(/\D/g, ''),
+        cccd: data.cccd.replace(/\D/g, ''),
         dateOfBirth: data.dateOfBirth || undefined,
         gender: data.gender || undefined,
         address: data.address,
@@ -450,24 +456,36 @@ const UserCreate = () => {
               {/* PHONE */}
               {/* ========================================= */}
 
-              <TextField
-                label="Số điện thoại"
-                required
-                fullWidth
-                placeholder="0912.345.678"
-                {...register('phone', {
-                  onChange: (event) => {
-                    event.target.value = formatPhone(event.target.value)
-                  }
-                })}
-                error={Boolean(errors.phone)}
-                helperText={errors.phone?.message}
-                slotProps={{
-                  htmlInput: {
-                    maxLength: 12,
-                    inputMode: 'numeric'
-                  }
-                }}
+              <Controller
+                name="phone"
+                control={control}
+                render={({ field }) => (
+                  <TextField
+                    name={field.name}
+                    inputRef={field.ref}
+                    onBlur={field.onBlur}
+                    label="Số điện thoại"
+                    required
+                    fullWidth
+                    placeholder="0912.345.678"
+                    value={formatPhone(field.value || '')}
+                    onChange={(event) => {
+                      const value = event.target.value
+                        .replace(/\D/g, '')
+                        .slice(0, 10)
+
+                      field.onChange(value)
+                    }}
+                    error={Boolean(errors.phone)}
+                    helperText={errors.phone?.message}
+                    slotProps={{
+                      htmlInput: {
+                        maxLength: 12,
+                        inputMode: 'numeric'
+                      }
+                    }}
+                  />
+                )}
               />
 
               {/* ========================================= */}
@@ -494,25 +512,38 @@ const UserCreate = () => {
               {/* CCCD */}
               {/* ========================================= */}
 
-              <TextField
-                label="CCCD"
-                required
-                fullWidth
-                placeholder="4444-4444-4444"
-                {...register('cccd', {
-                  onChange: (event) => {
-                    event.target.value = formatCccd(event.target.value)
-                  }
-                })}
-                error={Boolean(errors.cccd)}
-                helperText={errors.cccd?.message}
-                slotProps={{
-                  htmlInput: {
-                    maxLength: 14,
-                    inputMode: 'numeric'
-                  }
-                }}
+              <Controller
+                name="cccd"
+                control={control}
+                render={({ field }) => (
+                  <TextField
+                    name={field.name}
+                    inputRef={field.ref}
+                    onBlur={field.onBlur}
+                    label="CCCD"
+                    required
+                    fullWidth
+                    placeholder="4444-4444-4444"
+                    value={formatCccd(field.value || '')}
+                    onChange={(event) => {
+                      const value = event.target.value
+                        .replace(/\D/g, '')
+                        .slice(0, 12)
+
+                      field.onChange(value)
+                    }}
+                    error={Boolean(errors.cccd)}
+                    helperText={errors.cccd?.message}
+                    slotProps={{
+                      htmlInput: {
+                        maxLength: 14,
+                        inputMode: 'numeric'
+                      }
+                    }}
+                  />
+                )}
               />
+
               {/* ========================================= */}
               {/* ADDRESS */}
               {/* ========================================= */}

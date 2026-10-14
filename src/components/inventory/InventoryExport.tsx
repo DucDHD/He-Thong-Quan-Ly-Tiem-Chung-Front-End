@@ -1,11 +1,18 @@
 'use client'
-
+import { useEffect, useMemo, useState } from 'react'
+import { Controller, useFieldArray, useForm, useWatch } from 'react-hook-form'
+import { zodResolver } from '@hookform/resolvers/zod'
+import { z } from 'zod'
 import {
+  Alert,
   Box,
   Button,
   Chip,
+  Divider,
+  IconButton,
+  MenuItem,
   Paper,
-  Radio,
+  Stack,
   Table,
   TableBody,
   TableCell,
@@ -15,564 +22,811 @@ import {
   TextField,
   Typography
 } from '@mui/material'
+import {
+  AddCircleOutlined,
+  CheckCircleOutlined,
+  DeleteOutlined,
+  Inventory2Outlined,
+  RestartAlt
+} from '@mui/icons-material'
+import {
+  exportVaccineAPI,
+  getVaccineAvailableAPI,
+  type VaccineAvailable
+} from '@/services/inventory.type'
+import { formatDate } from '@/utils/format'
+import { toast } from 'react-toastify'
 
-import ArrowBackOutlinedIcon from '@mui/icons-material/ArrowBackOutlined'
-import OutputOutlinedIcon from '@mui/icons-material/OutputOutlined'
-
-import { zodResolver } from '@hookform/resolvers/zod'
-import dayjs from 'dayjs'
-import { useRouter } from 'next/navigation'
-import { useMemo, useState } from 'react'
-import { useForm } from 'react-hook-form'
-import { z } from 'zod'
-
-// ======================================================
-// TYPES
-// ======================================================
-
-type InventoryItem = {
-  id: number
-  vaccineName: string
-  vaccineType: string
-  importDate: string
-  licenseNumber: string
-  country: string
-  dosage: string
-  batchNumber: string
-  expiryDate: string
-  storageCondition: string
-  ageGroup: string
-  quantity: number
+// ======================================
+// HELPERS
+// ======================================
+const getToday = (): string => {
+  const date = new Date()
+  const offset = date.getTimezoneOffset() * 60000
+  return new Date(date.getTime() - offset).toISOString().slice(0, 10)
 }
-
-// ======================================================
-// MOCK DATA
-// ======================================================
-
-const inventoryData: InventoryItem[] = [
-  {
-    id: 1,
-    vaccineName: 'Phòng bệnh lao',
-    vaccineType: 'BCG',
-    importDate: '2026-09-01',
-    licenseNumber: 'GP001',
-    country: 'Việt Nam',
-    dosage: '0.1 ml',
-    batchNumber: 'BCG202601',
-    expiryDate: '2027-09-01',
-    storageCondition: '2°C - 8°C',
-    ageGroup: 'Trẻ em',
-    quantity: 500
-  },
-  {
-    id: 2,
-    vaccineName: 'Phòng Viêm gan B',
-    vaccineType: 'ENGERIX B',
-    importDate: '2026-09-05',
-    licenseNumber: 'GP002',
-    country: 'Bỉ',
-    dosage: '1 ml',
-    batchNumber: 'EGB202602',
-    expiryDate: '2027-09-05',
-    storageCondition: '2°C - 8°C',
-    ageGroup: 'Người lớn > 20 tuổi',
-    quantity: 200
-  },
-  {
-    id: 3,
-    vaccineName: 'Phòng bệnh uốn ván',
-    vaccineType: 'TETAVAX',
-    importDate: '2026-09-10',
-    licenseNumber: 'GP003',
-    country: 'Pháp',
-    dosage: '0.5 ml',
-    batchNumber: 'TTV202603',
-    expiryDate: '2027-09-10',
-    storageCondition: '2°C - 8°C',
-    ageGroup: 'Trẻ em',
-    quantity: 500
+const validDate = (value: string): boolean => {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) {
+    return false
   }
-]
-
-// ======================================================
-// VALIDATION
-// ======================================================
-
-const createExportSchema = (availableQuantity: number) =>
-  z.object({
-    quantity: z
-      .string()
-      .trim()
-      .min(1, 'Vui lòng nhập số lượng xuất')
-      .refine(
-        (value) => {
-          const number = Number(value)
-
-          return Number.isInteger(number) && number >= 1
-        },
-        {
-          message: 'Số lượng xuất phải là số nguyên lớn hơn 0'
-        }
-      )
-      .refine((value) => Number(value) <= availableQuantity, {
-        message: `Số lượng xuất không được vượt quá tồn kho (${availableQuantity})`
-      })
-  })
-
-type ExportForm = {
-  quantity: string
+  const [year, month, day] = value.split('-').map(Number)
+  const date = new Date(year, month - 1, day)
+  return (
+    date.getFullYear() === year &&
+    date.getMonth() + 1 === month &&
+    date.getDate() === day
+  )
 }
 
-// ======================================================
-// COMPONENT
-// ======================================================
+const detailSchema = z.object({
+  inventory_id: z
+    .number({
+      message: 'Vui lòng chọn vaccine'
+    })
+    .positive('Vui lòng chọn vaccine'),
+  quantity: z
+    .number({
+      message: 'Vui lòng nhập số lượng'
+    })
+    .positive('Số lượng phải lớn hơn 0')
+})
+const exportSchema = z.object({
+  export_date: z
+    .string()
+    .nonempty('Vui lòng chọn ngày xuất')
+    .refine(validDate, 'Ngày xuất không hợp lệ'),
 
-const InventoryExport = () => {
-  const router = useRouter()
-
-  const [selectedId, setSelectedId] = useState<number | null>(null)
-
-  const selectedItem = useMemo(
-    () => inventoryData.find((item) => item.id === selectedId) ?? null,
-    [selectedId]
-  )
-
-  const schema = useMemo(
-    () => createExportSchema(selectedItem?.quantity ?? 0),
-    [selectedItem]
-  )
-
-  const {
-    register,
-    handleSubmit,
-    reset,
-    formState: { errors, isSubmitting }
-  } = useForm<ExportForm>({
-    resolver: zodResolver(schema),
-    mode: 'onTouched',
-
-    defaultValues: {
-      quantity: ''
-    }
+  note: z.string(),
+  details: z
+    .array(detailSchema)
+    .nonempty('Phiếu xuất phải có ít nhất một vaccine')
+})
+const createExportSchema = (inventories: VaccineAvailable[]) =>
+  exportSchema.superRefine((data, ctx) => {
+    const selectedIds = new Set<number>()
+    data.details.forEach((detail, index) => {
+      if (detail.inventory_id <= 0) return
+      if (selectedIds.has(detail.inventory_id)) {
+        ctx.addIssue({
+          code: 'custom',
+          path: ['details', index, 'inventory_id'],
+          message: 'Lô vaccine đã được chọn ở dòng khác'
+        })
+      }
+      selectedIds.add(detail.inventory_id)
+      const inventory = inventories.find(
+        (item) => Number(item.inventory_id) === detail.inventory_id
+      )
+      if (!inventory) {
+        ctx.addIssue({
+          code: 'custom',
+          path: ['details', index, 'inventory_id'],
+          message: 'Không tìm thấy vaccine trong kho'
+        })
+        return
+      }
+      if (inventory.quantity <= 0) {
+        ctx.addIssue({
+          code: 'custom',
+          path: ['details', index, 'inventory_id'],
+          message: 'Lô vaccine đã hết tồn kho'
+        })
+      }
+      if (detail.quantity > inventory.quantity) {
+        ctx.addIssue({
+          code: 'custom',
+          path: ['details', index, 'quantity'],
+          message: `Số lượng vượt tồn kho (${inventory.quantity} liều)`
+        })
+      }
+    })
   })
-
-  // ====================================================
-  // SELECT VACCINE
-  // ====================================================
-
-  const handleSelect = (id: number) => {
-    setSelectedId(id)
-
-    reset({
-      quantity: ''
+type ExportFormValues = z.infer<typeof exportSchema>
+// ======================================
+// DEFAULT VALUES
+// ======================================
+const createDefaultValues = (): ExportFormValues => ({
+  export_date: getToday(),
+  note: '',
+  details: [
+    {
+      inventory_id: 0,
+      quantity: 0
+    }
+  ]
+})
+// ======================================
+// COMPONENT
+// ======================================
+export default function VaccineExport() {
+  const [inventories, setInventories] = useState<VaccineAvailable[]>([])
+  const [loading, setLoading] = useState(true)
+  const [loadError, setLoadError] = useState('')
+  // ======================================
+  // ZOD RESOLVER
+  // ======================================
+  const schema = useMemo(() => createExportSchema(inventories), [inventories])
+  // ======================================
+  // REACT HOOK FORM
+  // ======================================
+  const {
+    control,
+    handleSubmit,
+    setValue,
+    reset,
+    trigger,
+    formState: { errors, isSubmitting, submitCount }
+  } = useForm<ExportFormValues>({
+    resolver: zodResolver(schema),
+    mode: 'onSubmit',
+    reValidateMode: 'onChange',
+    defaultValues: createDefaultValues()
+  })
+  const { fields, append, remove } = useFieldArray({
+    control,
+    name: 'details'
+  })
+  const watchedDetails = useWatch({
+    control,
+    name: 'details'
+  })
+  const details = watchedDetails ?? []
+  // ======================================
+  // LOAD INVENTORIES
+  // ======================================
+  useEffect(() => {
+    let active = true
+    const fetchInventories = async () => {
+      try {
+        setLoading(true)
+        setLoadError('')
+        const data = await getVaccineAvailableAPI()
+        if (active) {
+          setInventories(data)
+        }
+      } catch (error) {
+        console.error('Lỗi tải vaccine:', error)
+        if (active) {
+          setLoadError('Không thể tải danh sách vaccine.')
+        }
+      } finally {
+        if (active) {
+          setLoading(false)
+        }
+      }
+    }
+    void fetchInventories()
+    return () => {
+      active = false
+    }
+  }, [])
+  // ======================================
+  // TOTAL QUANTITY
+  // ======================================
+  const totalQuantity = useMemo(() => {
+    return details.reduce((sum, detail) => {
+      const quantity = Number(detail.quantity)
+      return (
+        sum + (Number.isSafeInteger(quantity) && quantity > 0 ? quantity : 0)
+      )
+    }, 0)
+  }, [details])
+  // ======================================
+  // FIND INVENTORY
+  // ======================================
+  const findInventory = (inventoryId: number): VaccineAvailable | undefined => {
+    return inventories.find((item) => Number(item.inventory_id) === inventoryId)
+  }
+  // ======================================
+  // ADD ROW
+  // ======================================
+  const handleAddRow = () => {
+    append({
+      inventory_id: 0,
+      quantity: 0
     })
   }
-
-  // ====================================================
-  // BACK
-  // ====================================================
-
-  const handleBack = () => {
-    router.push('/inventory')
-  }
-
-  // ====================================================
-  // SUBMIT
-  // ====================================================
-
-  const onSubmit = async (data: ExportForm) => {
-    if (!selectedItem) {
-      return
+  // ======================================
+  // REMOVE ROW
+  // ======================================
+  const handleRemoveRow = (index: number) => {
+    if (fields.length <= 1) return
+    remove(index)
+    if (submitCount > 0) {
+      setTimeout(() => {
+        void trigger('details')
+      }, 0)
     }
+  }
+  // ======================================
+  // RESET
+  // ======================================
+  const handleReset = () => {
+    reset(createDefaultValues())
+  }
+  // ======================================
+  // SUBMIT
+  // ======================================
+  const onSubmit = async (data: ExportFormValues) => {
+    if (loading || loadError) return
 
     const payload = {
-      inventoryId: selectedItem.id,
-
-      batchNumber: selectedItem.batchNumber,
-
-      vaccineName: selectedItem.vaccineName,
-
-      quantity: Number(data.quantity),
-
-      exportDate: dayjs().format('YYYY-MM-DD'),
-
-      exportTime: dayjs().format('HH:mm')
+      export_date: data.export_date,
+      note: data.note,
+      details: data.details.map((detail) => ({
+        inventory_id: detail.inventory_id,
+        quantity: detail.quantity
+      }))
     }
 
-    console.log('EXPORT VACCINE:', payload)
-
-    // TODO:
-    //
-    // Sau này gọi API:
-    //
-    // await inventoryService.exportVaccine(
-    //   payload
-    // )
-
-    router.push('/inventory')
+    try {
+      await exportVaccineAPI(payload)
+      toast.success('Xuất vaccine Thành công')
+      reset(createDefaultValues())
+      // TODO: Hiển thị thông báo xuất kho thành công
+    } catch (error) {
+      console.error('Lỗi xuất kho:', error)
+      // TODO: Hiển thị thông báo xuất kho thất bại
+    }
   }
-
-  // ====================================================
-  // UI
-  // ====================================================
-
+  // ======================================
+  // RENDER
+  // ======================================
   return (
     <Box
       component="main"
       sx={(theme) => ({
         ml: theme.layout.sidebarWidth,
-
         pt: theme.layout.headerHeight,
-
-        minHeight: `calc(100vh - ${theme.layout.footerHeight})`,
-
+        height: `calc(100dvh - ${theme.layout.footerHeight})`,
+        overflow: 'hidden',
         bgcolor: '#f5f7fb',
-
-        boxSizing: 'border-box'
+        boxSizing: 'border-box',
+        display: 'flex',
+        flexDirection: 'column',
+        minWidth: 0
       })}
     >
       <Box
         sx={{
           width: '100%',
-
-          p: 3,
-
+          flex: 1,
+          minWidth: 0,
+          display: 'flex',
+          flexDirection: 'column',
+          px: { xs: 2, md: 3 },
+          py: 1,
+          minHeight: 0,
           boxSizing: 'border-box'
         }}
       >
         <Paper
-          variant="outlined"
+          elevation={0}
           sx={{
             width: '100%',
-
+            flex: 1,
+            minWidth: 0,
+            display: 'flex',
+            flexDirection: 'column',
+            borderRadius: 3,
+            border: '1px solid #e5eaf2',
             bgcolor: '#fff',
-
-            borderRadius: 2.5,
-
-            boxShadow: 'none',
-
+            minHeight: 0,
             overflow: 'hidden'
           }}
         >
-          {/* ============================================= */}
           {/* HEADER */}
-          {/* ============================================= */}
-
           <Box
             sx={{
-              px: 3,
-
-              py: 2.25,
-
-              display: 'flex',
-
-              alignItems: 'center',
-
-              gap: 1.5,
-
-              borderBottom: '1px solid',
-
-              borderColor: 'divider'
+              px: { xs: 2, md: 3 },
+              pt: 2,
+              pb: 4,
+              flexShrink: 0
             }}
           >
-            <Box
+            <Stack
               sx={{
-                width: 44,
-
-                height: 44,
-
                 display: 'flex',
-
+                flexDirection: 'row',
                 alignItems: 'center',
-
-                justifyContent: 'center',
-
-                flexShrink: 0,
-
-                borderRadius: 2,
-
-                bgcolor: 'primary.main',
-
-                color: '#fff'
+                gap: 1.25,
+                mb: 1
               }}
             >
-              <OutputOutlinedIcon />
-            </Box>
-
-            <Box>
-              <Typography
-                variant="h5"
+              <Box
                 sx={{
-                  fontWeight: 700,
-
-                  lineHeight: 1.25
+                  width: 38,
+                  height: 38,
+                  flexShrink: 0,
+                  bgcolor: '#eaf2ff',
+                  borderRadius: 2,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center'
                 }}
               >
-                Xuất vaccine
-              </Typography>
-
-              <Typography
-                variant="body2"
-                color="text.secondary"
+                <Inventory2Outlined
+                  sx={{
+                    color: '#2563eb',
+                    fontSize: 25
+                  }}
+                />
+              </Box>
+              <Box
                 sx={{
-                  mt: 0.25
+                  flex: 1,
+                  minWidth: 0
                 }}
               >
-                Chọn vaccine và số lượng cần xuất khỏi kho
-              </Typography>
-            </Box>
+                <Typography
+                  sx={{
+                    fontSize: 20,
+                    fontWeight: 700,
+                    color: '#172033'
+                  }}
+                >
+                  Xuất vaccine
+                </Typography>
+                <Typography
+                  sx={{
+                    fontSize: 13,
+                    color: 'text.secondary',
+                    mt: 0.3
+                  }}
+                >
+                  Tạo phiếu xuất vaccine từ kho tổng sang kho tiêm chủng
+                </Typography>
+              </Box>
+              <Chip
+                label="Phiếu mới"
+                size="small"
+                sx={{
+                  bgcolor: '#f1f5f9',
+                  fontWeight: 500
+                }}
+              />
+            </Stack>
+            <Divider sx={{ mb: 3 }} />
+
+            {/* NGÀY XUẤT */}
+            <Controller
+              name="export_date"
+              control={control}
+              render={({ field }) => (
+                <TextField
+                  {...field}
+                  label="Ngày xuất vaccine"
+                  size="small"
+                  type="date"
+                  required
+                  fullWidth
+                  error={Boolean(errors.export_date)}
+                  helperText={errors.export_date?.message}
+                  slotProps={{
+                    inputLabel: {
+                      shrink: true
+                    }
+                  }}
+                  sx={{
+                    width: {
+                      xs: '100%',
+                      sm: 380,
+                      md: 420
+                    },
+                    maxWidth: '100%'
+                  }}
+                />
+              )}
+            />
           </Box>
-
-          {/* ============================================= */}
-          {/* TABLE */}
-          {/* ============================================= */}
-
+          <Divider />
+          {/* DANH SÁCH VACCINE */}
           <Box
             sx={{
-              p: 3
+              flex: 1,
+              minHeight: 0,
+              overflowY: 'auto',
+              overflowX: 'hidden',
+              px: { xs: 2, md: 3 },
+              py: 1.5,
+              minWidth: 0
             }}
           >
-            <Typography
-              variant="subtitle1"
+            <Stack
               sx={{
-                mb: 1.5,
-
-                fontWeight: 600
+                display: 'flex',
+                flexDirection: 'row',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+                gap: 1.5,
+                mb: 1.25
               }}
             >
-              Chọn vaccine cần xuất
-            </Typography>
-
-            <TableContainer
+              <Typography
+                sx={{
+                  fontSize: 16,
+                  fontWeight: 700
+                }}
+              >
+                Danh sách vaccine xuất
+              </Typography>
+              <Chip
+                label={`${fields.length} vaccine`}
+                size="small"
+                color="primary"
+                variant="outlined"
+              />
+            </Stack>
+            <Stack
               sx={{
-                border: '1px solid',
-
-                borderColor: 'divider',
-
-                borderRadius: 2,
-
-                maxHeight: 420
+                display: 'flex',
+                flexDirection: 'column',
+                gap: 1.5
               }}
             >
-              <Table stickyHeader size="small">
-                <TableHead>
-                  <TableRow>
-                    <TableCell width={60} align="center">
-                      Chọn
-                    </TableCell>
+              {fields.map((item, index) => {
+                const detail = details[index]
+                const selectedInventory = detail?.inventory_id
+                  ? findInventory(detail.inventory_id)
+                  : undefined
+                return (
+                  <Box
+                    key={item.id}
+                    sx={{
+                      border: '1px solid #dce2ea',
+                      borderRadius: 2,
+                      bgcolor: '#fafbfc',
+                      p: { xs: 1.25, md: 1.5 }
+                    }}
+                  >
+                    {/* HEADER ROW */}
+                    <Stack
+                      sx={{
+                        display: 'flex',
+                        flexDirection: 'row',
+                        justifyContent: 'space-between',
+                        alignItems: 'center',
+                        mb: 1
+                      }}
+                    >
+                      {fields.length > 1 && (
+                        <IconButton
+                          type="button"
+                          color="error"
+                          size="small"
+                          sx={{ ml: 'auto' }}
+                          onClick={() => handleRemoveRow(index)}
+                        >
+                          <DeleteOutlined fontSize="small" />
+                        </IconButton>
+                      )}
+                    </Stack>
+                    {/* VACCINE + SỐ LƯỢNG */}
+                    <Stack
+                      sx={{
+                        display: 'flex',
+                        flexDirection: {
+                          xs: 'column',
+                          md: 'row'
+                        },
+                        gap: 1.5
+                      }}
+                    >
+                      {/* CHỌN VACCINE */}
 
-                    <TableCell>Tên vaccine</TableCell>
+                      <Controller
+                        name={`details.${index}.inventory_id`}
+                        control={control}
+                        render={({ field }) => (
+                          <TextField
+                            select
+                            label="Chọn vaccine"
+                            size="small"
+                            required
+                            fullWidth
+                            disabled={loading || isSubmitting}
+                            name={field.name}
+                            value={field.value ? Number(field.value) : ''}
+                            onBlur={field.onBlur}
+                            inputRef={field.ref}
+                            onChange={(event) => {
+                              field.onChange(Number(event.target.value) || 0)
+                              setValue(`details.${index}.quantity`, 0)
 
-                    <TableCell>Loại vaccine</TableCell>
-
-                    <TableCell>Số lô</TableCell>
-
-                    <TableCell>Ngày nhập</TableCell>
-
-                    <TableCell>Hạn sử dụng</TableCell>
-
-                    <TableCell align="right">Tồn kho</TableCell>
-
-                    <TableCell>Điều kiện bảo quản</TableCell>
-
-                    <TableCell>Độ tuổi</TableCell>
-
-                    <TableCell>Trạng thái</TableCell>
-                  </TableRow>
-                </TableHead>
-
-                <TableBody>
-                  {inventoryData.map((item) => {
-                    const selected = selectedId === item.id
-
-                    return (
-                      <TableRow
-                        key={item.id}
-                        hover
-                        selected={selected}
-                        onClick={() => handleSelect(item.id)}
-                        sx={{
-                          cursor: 'pointer'
-                        }}
-                      >
-                        <TableCell align="center">
-                          <Radio
-                            checked={selected}
-                            onChange={() => handleSelect(item.id)}
-                            value={item.id}
-                          />
-                        </TableCell>
-
-                        <TableCell>{item.vaccineName}</TableCell>
-
-                        <TableCell>{item.vaccineType}</TableCell>
-
-                        <TableCell>{item.batchNumber}</TableCell>
-
-                        <TableCell>
-                          {dayjs(item.importDate).format('DD/MM/YYYY')}
-                        </TableCell>
-
-                        <TableCell>
-                          {dayjs(item.expiryDate).format('DD/MM/YYYY')}
-                        </TableCell>
-
-                        <TableCell align="right">
-                          <Typography
+                              if (submitCount > 0) {
+                                void trigger('details')
+                              }
+                            }}
+                            error={Boolean(
+                              errors.details?.[index]?.inventory_id
+                            )}
+                            helperText={
+                              errors.details?.[index]?.inventory_id?.message ||
+                              ' '
+                            }
                             sx={{
-                              fontWeight: 600
+                              flex: '1 1 0',
+                              minWidth: 0
                             }}
                           >
-                            {item.quantity}
-                          </Typography>
-                        </TableCell>
+                            <MenuItem value="">
+                              <em>Chọn vaccine</em>
+                            </MenuItem>
 
-                        <TableCell>{item.storageCondition}</TableCell>
+                            {inventories
+                              .filter(
+                                (inventory) =>
+                                  inventory.quantity > 0 ||
+                                  Number(inventory.inventory_id) ===
+                                    Number(field.value)
+                              )
+                              .map((inventory) => (
+                                <MenuItem
+                                  key={inventory.inventory_id}
+                                  value={Number(inventory.inventory_id)}
+                                >
+                                  {inventory.vaccine_name}
+                                </MenuItem>
+                              ))}
+                          </TextField>
+                        )}
+                      />
 
-                        <TableCell>{item.ageGroup}</TableCell>
-
-                        <TableCell>
-                          <Chip
-                            label={item.quantity > 0 ? 'Còn hàng' : 'Hết hàng'}
-                            color={item.quantity > 0 ? 'success' : 'default'}
+                      {/* SỐ LƯỢNG XUẤT */}
+                      <Controller
+                        name={`details.${index}.quantity`}
+                        control={control}
+                        render={({ field }) => (
+                          <TextField
+                            label="Số lượng xuất"
                             size="small"
-                            variant="outlined"
+                            type="number"
+                            required
+                            fullWidth
+                            disabled={isSubmitting}
+                            name={field.name}
+                            value={field.value || ''}
+                            onBlur={field.onBlur}
+                            inputRef={field.ref}
+                            onChange={(event) => {
+                              const value = event.target.value
+                              field.onChange(value === '' ? 0 : Number(value))
+                            }}
+                            error={Boolean(errors.details?.[index]?.quantity)}
+                            helperText={
+                              errors.details?.[index]?.quantity?.message || ' '
+                            }
+                            slotProps={{
+                              htmlInput: {
+                                min: 1,
+                                step: 1,
+                                max: selectedInventory?.quantity
+                              }
+                            }}
+                            sx={{
+                              flex: '1 1 0',
+                              minWidth: 0
+                            }}
                           />
-                        </TableCell>
-                      </TableRow>
-                    )
-                  })}
-                </TableBody>
-              </Table>
-            </TableContainer>
-          </Box>
-
-          {/* ============================================= */}
-          {/* EXPORT FORM */}
-          {/* ============================================= */}
-
-          <Box component="form" onSubmit={handleSubmit(onSubmit)}>
+                        )}
+                      />
+                    </Stack>
+                    {/* Chừa sẵn chỗ cho thông tin lô: chọn vaccine không đổi chiều cao dòng */}
+                    <Box
+                      sx={{
+                        mt: 1,
+                        height: 64,
+                        minHeight: 64,
+                        overflow: 'hidden'
+                      }}
+                    >
+                      {selectedInventory && (
+                        <TableContainer
+                          sx={{
+                            border: '1px solid #e2e8f0',
+                            borderRadius: 1,
+                            bgcolor: '#fff'
+                          }}
+                        >
+                          <Table size="small" sx={{ tableLayout: 'fixed' }}>
+                            <TableHead>
+                              <TableRow sx={{ bgcolor: '#f1f5f9' }}>
+                                {['Mã lô', 'Hạn sử dụng', 'Số lượng tồn'].map(
+                                  (label) => (
+                                    <TableCell
+                                      key={label}
+                                      sx={{
+                                        width: '33.33%',
+                                        py: 0.5,
+                                        px: 1,
+                                        fontSize: 11,
+                                        fontWeight: 600,
+                                        color: '#64748b'
+                                      }}
+                                    >
+                                      {label}
+                                    </TableCell>
+                                  )
+                                )}
+                              </TableRow>
+                            </TableHead>
+                            <TableBody>
+                              <TableRow
+                                sx={{ '&:last-child td': { borderBottom: 0 } }}
+                              >
+                                <TableCell
+                                  sx={{ py: 0.5, px: 1, fontSize: 12 }}
+                                >
+                                  {selectedInventory.lot_code}
+                                </TableCell>
+                                <TableCell
+                                  sx={{ py: 0.5, px: 1, fontSize: 12 }}
+                                >
+                                  {formatDate(selectedInventory.expiry_date)}
+                                </TableCell>
+                                <TableCell
+                                  sx={{
+                                    py: 0.5,
+                                    px: 1,
+                                    fontSize: 12,
+                                    fontWeight: 700,
+                                    color: '#16a34a'
+                                  }}
+                                >
+                                  {selectedInventory.quantity} liều
+                                </TableCell>
+                              </TableRow>
+                            </TableBody>
+                          </Table>
+                        </TableContainer>
+                      )}
+                    </Box>
+                  </Box>
+                )
+              })}
+            </Stack>
+            {/* THÊM VACCINE */}
             <Box
               sx={{
-                px: 3,
-
-                pb: 3,
-
-                display: 'grid',
-
-                gridTemplateColumns: {
-                  xs: '1fr',
-
-                  md: 'repeat(2, minmax(0, 1fr))'
-                },
-
-                columnGap: 2,
-
-                rowGap: 2
+                display: 'flex',
+                justifyContent: 'flex-end',
+                mt: 1
               }}
             >
-              <TextField
-                label="Vaccine đã chọn"
-                fullWidth
-                disabled
-                value={
-                  selectedItem
-                    ? `${selectedItem.vaccineName} - Lô ${selectedItem.batchNumber}`
-                    : ''
-                }
-                placeholder="Chưa chọn vaccine"
-              />
-
-              <TextField
-                label="Số lượng xuất"
-                type="number"
-                required
-                fullWidth
-                disabled={!selectedItem}
-                placeholder="Nhập số lượng xuất"
-                {...register('quantity')}
-                error={Boolean(errors.quantity)}
-                helperText={
-                  errors.quantity?.message ||
-                  (selectedItem
-                    ? `Tồn kho hiện tại: ${selectedItem.quantity}`
-                    : 'Vui lòng chọn vaccine trước')
-                }
-                slotProps={{
-                  htmlInput: {
-                    min: 1,
-
-                    max: selectedItem?.quantity ?? undefined,
-
-                    step: 1
-                  }
+              <Button
+                type="button"
+                variant="outlined"
+                startIcon={<AddCircleOutlined />}
+                onClick={handleAddRow}
+                sx={{
+                  textTransform: 'none',
+                  borderRadius: 1.5,
+                  px: 2
                 }}
+              >
+                Thêm vaccine
+              </Button>
+            </Box>
+            {/* GHI CHÚ */}
+            <Box sx={{ mt: 1.5 }}>
+              <Controller
+                name="note"
+                control={control}
+                render={({ field }) => (
+                  <TextField
+                    {...field}
+                    label="Ghi chú"
+                    size="small"
+                    placeholder="Nhập ghi chú (không bắt buộc)"
+                    fullWidth
+                    multiline
+                    minRows={3}
+                    error={Boolean(errors.note)}
+                    helperText={errors.note?.message || ' '}
+                    sx={{
+                      '& .MuiInputBase-inputMultiline': {
+                        resize: 'vertical',
+                        overflow: 'auto'
+                      }
+                    }}
+                  />
+                )}
               />
             </Box>
-
-            {/* =========================================== */}
-            {/* ACTION */}
-            {/* =========================================== */}
-
-            <Box
+            {/* LỖI TẢI API */}
+            {loadError && (
+              <Alert
+                severity="error"
+                sx={{
+                  mt: 2
+                }}
+              >
+                {loadError}
+              </Alert>
+            )}
+          </Box>
+          <Divider />
+          {/* FOOTER */}
+          <Box
+            sx={{
+              px: {
+                xs: 2,
+                md: 3
+              },
+              py: 1.25,
+              flexShrink: 0,
+              display: 'flex',
+              flexDirection: {
+                xs: 'column',
+                sm: 'row'
+              },
+              justifyContent: 'space-between',
+              alignItems: {
+                xs: 'stretch',
+                sm: 'center'
+              },
+              gap: 2
+            }}
+          >
+            <Box>
+              <Typography
+                sx={{
+                  fontSize: 12,
+                  color: 'text.secondary'
+                }}
+              >
+                Tổng số liều xuất
+              </Typography>
+              <Typography
+                sx={{
+                  fontSize: 19,
+                  fontWeight: 700,
+                  color: '#2563eb'
+                }}
+              >
+                {totalQuantity} liều
+              </Typography>
+            </Box>
+            <Stack
               sx={{
-                px: 3,
-
-                py: 2,
-
-                borderTop: '1px solid',
-
-                borderColor: 'divider',
-
                 display: 'flex',
-
+                flexDirection: 'row',
                 justifyContent: 'flex-end',
-
-                alignItems: 'center',
-
                 gap: 1.5
               }}
             >
               <Button
                 type="button"
                 variant="outlined"
-                startIcon={<ArrowBackOutlinedIcon />}
-                onClick={handleBack}
-                disabled={isSubmitting}
+                color="inherit"
+                startIcon={<RestartAlt />}
+                onClick={handleReset}
                 sx={{
-                  minWidth: 110,
-
-                  height: 42,
-
-                  textTransform: 'none'
-                }}
-              >
-                Hủy
-              </Button>
-
-              <Button
-                type="submit"
-                variant="contained"
-                startIcon={<OutputOutlinedIcon />}
-                disabled={!selectedItem || isSubmitting}
-                sx={{
-                  minWidth: 130,
-
-                  height: 42,
-
                   textTransform: 'none',
-
-                  fontWeight: 600
+                  borderRadius: 1.5,
+                  px: 2.5
                 }}
               >
-                {isSubmitting ? 'Đang xuất...' : 'Xuất'}
+                Làm mới
               </Button>
-            </Box>
+              <Button
+                type="button"
+                variant="contained"
+                startIcon={<CheckCircleOutlined />}
+                onClick={handleSubmit(onSubmit)}
+                sx={{
+                  textTransform: 'none',
+                  borderRadius: 1.5,
+                  fontWeight: 600,
+                  px: 2.5
+                }}
+              >
+                xuất kho
+              </Button>
+            </Stack>
           </Box>
         </Paper>
       </Box>
     </Box>
   )
 }
-
-export default InventoryExport

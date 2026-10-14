@@ -123,7 +123,7 @@ const ScheduleCreate = () => {
     mode: 'onTouched',
     defaultValues: {
       vaccinationDate: dayjs().format('YYYY-MM-DD'),
-      vaccinationTime: dayjs().add(5, 'minute').format('HH:mm'),
+      vaccinationTime: '',
       vaccine_id: undefined,
       capacity: 1,
       age: '',
@@ -164,10 +164,15 @@ const ScheduleCreate = () => {
         const { field, message } = error.response?.data || {}
 
         if (field && message) {
-          setError(field as keyof ScheduleFormData, {
-            type: 'server',
-            message
-          })
+          setError(
+            field === 'stock_quantity'
+              ? 'vaccine_id'
+              : (field as keyof ScheduleFormData),
+            {
+              type: 'server',
+              message
+            }
+          )
 
           return
         }

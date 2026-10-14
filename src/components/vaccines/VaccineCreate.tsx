@@ -122,6 +122,7 @@ const VaccineCreate = () => {
   } = useForm<VaccineFormData>({
     resolver: zodResolver(vaccineSchema),
     mode: 'onTouched',
+    shouldFocusError: false,
 
     defaultValues: {
       vaccine_name: '',

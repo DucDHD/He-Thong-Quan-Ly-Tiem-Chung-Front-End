@@ -1,14 +1,18 @@
 import { NextRequest, NextResponse } from 'next/server'
 
 export function proxy(request: NextRequest) {
-  const token = request.cookies.get('accessToken')?.value
+  const accessToken = request.cookies.get('accessToken')?.value
+
+  const refreshToken =  request.cookies.get('refreshToken')?.value
 
   const pendingVerify = request.cookies.get('pendingVerify')?.value
 
   const { pathname } = request.nextUrl
 
+  const hasSession = Boolean(accessToken || refreshToken)
+
   // Đã đăng nhập
-  if (token) {
+  if (hasSession) {
     if (
       pathname === '/login' ||
       pathname === '/register' ||

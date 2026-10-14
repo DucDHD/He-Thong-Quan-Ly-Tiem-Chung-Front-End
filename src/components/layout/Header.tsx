@@ -219,36 +219,6 @@ function Header() {
                   Hồ sơ cá nhân
                 </Typography>
               </Box>
-              <Box
-                onClick={handleFeedback}
-                sx={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 1.5,
-                  minHeight: 46,
-                  px: 2,
-                  cursor: 'pointer',
-                  color: '#374151',
-                  '&:hover': {
-                    bgcolor: '#f5f7fa'
-                  }
-                }}
-              >
-                <FeedbackOutlinedIcon
-                  sx={{
-                    fontSize: 20,
-                    color: '#6b7280'
-                  }}
-                />
-
-                <Typography
-                  sx={{
-                    fontSize: 14
-                  }}
-                >
-                  Phản hồi cấp cao
-                </Typography>
-              </Box>
 
               <Divider />
 

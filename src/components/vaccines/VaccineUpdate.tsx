@@ -147,6 +147,8 @@ export default function VaccineUpdate() {
     formState: { errors, isSubmitting }
   } = useForm<VaccineFormData>({
     resolver: zodResolver(vaccineSchema),
+    mode: 'onTouched',
+    shouldFocusError: false,
 
     defaultValues: {
       vaccine_name: '',
@@ -326,7 +328,11 @@ export default function VaccineUpdate() {
 
           {/* FORM */}
 
-          <Box component="form" onSubmit={handleSubmit(handleUpdate)}>
+          <Box
+            component="form"
+            onSubmit={handleSubmit(handleUpdate)}
+            noValidate
+          >
             <Box
               sx={{
                 p: 3,
@@ -346,182 +352,202 @@ export default function VaccineUpdate() {
             >
               {/* TÊN VACCINE */}
 
-              <TextField
-                label="Tên Vaccine"
-                required
-                fullWidth
-                placeholder="Nhập tên vaccine"
-                {...register('vaccine_name')}
-                error={Boolean(errors.vaccine_name)}
-                helperText={errors.vaccine_name?.message}
-                slotProps={{
-                  inputLabel: {
-                    shrink: true
-                  },
-                  htmlInput: {
-                    maxLength: 150
-                  }
-                }}
+              <Controller
+                name="vaccine_name"
+                control={control}
+                render={({ field }) => (
+                  <TextField
+                    {...field}
+                    value={field.value ?? ''}
+                    label="Tên Vaccine"
+                    required
+                    fullWidth
+                    placeholder="Nhập tên vaccine"
+                    error={Boolean(errors.vaccine_name)}
+                    helperText={errors.vaccine_name?.message}
+                    slotProps={{
+                      htmlInput: {
+                        maxLength: 150
+                      }
+                    }}
+                  />
+                )}
               />
 
               {/* LOẠI VACCINE */}
 
-              <TextField
-                label="Loại Vaccine"
-                required
-                fullWidth
-                placeholder="VD: HPV, cúm, viêm gan B..."
-                {...register('vaccine_type')}
-                error={Boolean(errors.vaccine_type)}
-                helperText={errors.vaccine_type?.message}
-                slotProps={{
-                  inputLabel: {
-                    shrink: true
-                  },
-                  htmlInput: {
-                    maxLength: 150
-                  }
-                }}
+              <Controller
+                name="vaccine_type"
+                control={control}
+                render={({ field }) => (
+                  <TextField
+                    {...field}
+                    value={field.value ?? ''}
+                    label="Loại Vaccine"
+                    required
+                    fullWidth
+                    placeholder="VD: HPV, cúm, viêm gan B..."
+                    error={Boolean(errors.vaccine_type)}
+                    helperText={errors.vaccine_type?.message}
+                    slotProps={{
+                      htmlInput: { maxLength: 100 }
+                    }}
+                  />
+                )}
               />
 
               {/* SỐ GIẤY PHÉP */}
 
-              <TextField
-                label="Số giấy phép"
-                required
-                fullWidth
-                placeholder="Nhập số giấy phép"
-                {...register('license_number')}
-                error={Boolean(errors.license_number)}
-                helperText={errors.license_number?.message}
-                slotProps={{
-                  inputLabel: {
-                    shrink: true
-                  },
-                  htmlInput: {
-                    maxLength: 150
-                  }
-                }}
+              <Controller
+                name="license_number"
+                control={control}
+                render={({ field }) => (
+                  <TextField
+                    {...field}
+                    value={field.value ?? ''}
+                    label="Số giấy phép"
+                    required
+                    fullWidth
+                    placeholder="Nhập số giấy phép"
+                    error={Boolean(errors.license_number)}
+                    helperText={errors.license_number?.message}
+                    slotProps={{
+                      htmlInput: { maxLength: 100 }
+                    }}
+                  />
+                )}
               />
 
               {/* NHÀ SẢN XUẤT */}
 
-              <TextField
-                label="Nhà sản xuất"
-                required
-                fullWidth
-                placeholder="Nhập nhà sản xuất"
-                {...register('manufacturer')}
-                error={Boolean(errors.manufacturer)}
-                helperText={errors.manufacturer?.message}
-                slotProps={{
-                  inputLabel: {
-                    shrink: true
-                  },
-                  htmlInput: {
-                    maxLength: 150
-                  }
-                }}
+              <Controller
+                name="manufacturer"
+                control={control}
+                render={({ field }) => (
+                  <TextField
+                    {...field}
+                    value={field.value ?? ''}
+                    label="Nhà sản xuất"
+                    required
+                    fullWidth
+                    placeholder="Nhập nhà sản xuất"
+                    error={Boolean(errors.manufacturer)}
+                    helperText={errors.manufacturer?.message}
+                    slotProps={{
+                      htmlInput: { maxLength: 150 }
+                    }}
+                  />
+                )}
               />
 
               {/* NƯỚC SẢN XUẤT */}
 
-              <TextField
-                label="Nước sản xuất"
-                required
-                fullWidth
-                placeholder="VD: Mỹ"
-                {...register('country')}
-                error={Boolean(errors.country)}
-                helperText={errors.country?.message}
-                slotProps={{
-                  inputLabel: {
-                    shrink: true
-                  },
-                  htmlInput: {
-                    maxLength: 150
-                  }
-                }}
+              <Controller
+                name="country"
+                control={control}
+                render={({ field }) => (
+                  <TextField
+                    {...field}
+                    value={field.value ?? ''}
+                    label="Nước sản xuất"
+                    required
+                    fullWidth
+                    placeholder="VD: Mỹ"
+                    error={Boolean(errors.country)}
+                    helperText={errors.country?.message}
+                    slotProps={{
+                      htmlInput: { maxLength: 100 }
+                    }}
+                  />
+                )}
               />
 
               {/* HÀM LƯỢNG */}
 
-              <TextField
-                label="Hàm lượng"
-                required
-                fullWidth
-                placeholder="VD: 0.5 ml"
-                {...register('dosage')}
-                error={Boolean(errors.dosage)}
-                helperText={errors.dosage?.message}
-                slotProps={{
-                  inputLabel: {
-                    shrink: true
-                  },
-                  htmlInput: {
-                    maxLength: 150
-                  }
-                }}
+              <Controller
+                name="dosage"
+                control={control}
+                render={({ field }) => (
+                  <TextField
+                    {...field}
+                    value={field.value ?? ''}
+                    label="Hàm lượng"
+                    required
+                    fullWidth
+                    placeholder="VD: 0.5 ml"
+                    error={Boolean(errors.dosage)}
+                    helperText={errors.dosage?.message}
+                    slotProps={{
+                      htmlInput: { maxLength: 100 }
+                    }}
+                  />
+                )}
               />
 
               {/* ĐỘ TUỔI */}
 
-              <TextField
-                label="Độ tuổi tiêm chủng"
-                required
-                fullWidth
-                placeholder="VD: 9 - 45 tuổi"
-                {...register('vaccination_age')}
-                error={Boolean(errors.vaccination_age)}
-                helperText={errors.vaccination_age?.message}
-                slotProps={{
-                  inputLabel: {
-                    shrink: true
-                  },
-                  htmlInput: {
-                    maxLength: 150
-                  }
-                }}
+              <Controller
+                name="vaccination_age"
+                control={control}
+                render={({ field }) => (
+                  <TextField
+                    {...field}
+                    value={field.value ?? ''}
+                    label="Độ tuổi tiêm chủng"
+                    required
+                    fullWidth
+                    placeholder="VD: 9 - 45 tuổi"
+                    error={Boolean(errors.vaccination_age)}
+                    helperText={errors.vaccination_age?.message}
+                    slotProps={{
+                      htmlInput: { maxLength: 100 }
+                    }}
+                  />
+                )}
               />
 
               {/* ĐƠN VỊ */}
 
-              <TextField
-                label="Đơn vị"
-                required
-                fullWidth
-                placeholder="VD: Liều"
-                {...register('unit')}
-                error={Boolean(errors.unit)}
-                helperText={errors.unit?.message}
-                slotProps={{
-                  inputLabel: {
-                    shrink: true
-                  },
-                  htmlInput: {
-                    maxLength: 150
-                  }
-                }}
+              <Controller
+                name="unit"
+                control={control}
+                render={({ field }) => (
+                  <TextField
+                    {...field}
+                    value={field.value ?? ''}
+                    label="Đơn vị"
+                    required
+                    fullWidth
+                    placeholder="VD: Liều"
+                    error={Boolean(errors.unit)}
+                    helperText={errors.unit?.message}
+                    slotProps={{
+                      htmlInput: { maxLength: 50 }
+                    }}
+                  />
+                )}
               />
 
               {/* BẢO QUẢN */}
 
-              <TextField
-                label="Điều kiện bảo quản"
-                required
-                fullWidth
-                placeholder="VD: Bảo quản ở 2 - 8°C"
-                {...register('storage_condition')}
-                error={Boolean(errors.storage_condition)}
-                helperText={errors.storage_condition?.message}
-                slotProps={{
-                  inputLabel: {
-                    shrink: true
-                  },
-                  htmlInput: {
-                    maxLength: 150
-                  }
-                }}
+              <Controller
+                name="storage_condition"
+                control={control}
+                render={({ field }) => (
+                  <TextField
+                    {...field}
+                    value={field.value ?? ''}
+                    label="Điều kiện bảo quản"
+                    required
+                    fullWidth
+                    placeholder="VD: Bảo quản ở 2 - 8°C"
+                    error={Boolean(errors.storage_condition)}
+                    helperText={errors.storage_condition?.message}
+                    slotProps={{
+                      htmlInput: { maxLength: 255 }
+                    }}
+                  />
+                )}
               />
 
               {/* GIÁ */}
@@ -532,11 +558,13 @@ export default function VaccineUpdate() {
                 render={({ field }) => (
                   <NumericFormat
                     customInput={TextField}
+                    name={field.name}
+                    getInputRef={field.ref}
                     label="Giá Vaccine"
                     required
                     fullWidth
                     placeholder="VD: 1.500.000"
-                    value={field.value}
+                    value={field.value ?? ''}
                     thousandSeparator="."
                     decimalSeparator=","
                     decimalScale={0}
@@ -549,7 +577,6 @@ export default function VaccineUpdate() {
                     }}
                     isAllowed={(values) => {
                       const value = values.floatValue
-
                       return value === undefined || value <= 999999999
                     }}
                     error={Boolean(errors.price)}
@@ -561,7 +588,7 @@ export default function VaccineUpdate() {
               {/* MÔ TẢ */}
 
               <TextField
-                label="Mô tả"
+                label={errors.description ? '' : 'Mô tả'}
                 fullWidth
                 multiline
                 minRows={3}
@@ -572,9 +599,6 @@ export default function VaccineUpdate() {
                 slotProps={{
                   inputLabel: {
                     shrink: true
-                  },
-                  htmlInput: {
-                    maxLength: 150
                   }
                 }}
                 sx={{

@@ -91,6 +91,7 @@ const menuItems: MenuItem[] = [
   {
     label: 'Quản lý kho',
     icon: <Inventory2OutlinedIcon />,
+    roles: [UserRole.ADMIN, UserRole.DOCTOR],
     children: [
       {
         label: 'Xem Tình Hình Kho',
@@ -103,78 +104,71 @@ const menuItems: MenuItem[] = [
       {
         label: 'Xuất Vắc Xin',
         path: '/inventory/export'
+      },
+      {
+        label: 'Kho Tiêm Chủng',
+        path: '/inventory/stock'
       }
     ]
   },
   {
     label: 'Quản Lý Bệnh Nhân',
     icon: <PeopleAltOutlinedIcon />,
+    roles: [UserRole.ADMIN, UserRole.DOCTOR],
     children: [
       {
-        label: 'Xem Hồ Sơ Bệnh Án',
-        path: '/customer/detail'
-      },
-      {
-        label: 'Cập Nhập Hồ Sơ',
-        path: '/customer/edit'
-      },
-      {
-        label: 'Kê Đơn',
-        path: '/customer/prescription'
+        label: 'Danh Sách Bệnh Nhân',
+        path: '/customer'
       }
     ]
   },
-  {
-    label: 'Tra cứu dịch bệnh',
-    icon: <CoronavirusOutlinedIcon />,
-    children: [
-      {
-        label: 'Tra cứu dịch bệnh tại địa phương',
-        path: '/disease-situation/'
-      },
-      {
-        label: 'Thêm tra cứu bệnh dịch',
-        path: '/disease-situation/create'
-      }
-    ]
-  },
+  // {
+  //   label: 'Tra cứu dịch bệnh',
+  //   icon: <CoronavirusOutlinedIcon />,
+  //   children: [
+  //     {
+  //       label: 'Tra cứu dịch bệnh tại địa phương',
+  //       path: '/disease-situation/'
+  //     },
+  //     {
+  //       label: 'Thêm tra cứu bệnh dịch',
+  //       path: '/disease-situation/create'
+  //     }
+  //   ]
+  // },
   {
     label: 'Tài chính',
     icon: <AccountBalanceWalletOutlinedIcon />,
     children: [
       {
-        label: 'Quản lý giá Vaccine',
-        path: '/finance/vaccine-prices'
-      },
-      {
-        label: 'Quản Lý Giao Dịch với Khách hàng',
+        label: 'Giao Dịch với Khách hàng',
         path: '/finance/transaction-customer'
-      },
-      {
-        label: 'Quản Lý Giao Dịch với Nhà Cung Cấp',
-        path: '/finance/transaction-supplier'
       }
+      // {
+      //   label: 'Quản Lý Giao Dịch với Nhà Cung Cấp',
+      //   path: '/finance/transaction-supplier'
+      // }
     ]
-  },
-  {
-    label: 'Chăm sóc khách hàng',
-    icon: <PeopleAltOutlinedIcon />,
-    children: [
-      {
-        label: 'Nhắc Lịch Tiêm',
-        path: '/customer-care/reminder'
-      },
-      {
-        label: 'Tư Vấn Khách Hàng',
-        path: '/customer-care/chat'
-      }
-    ]
-  },
-  {
-    label: 'Feedback khách hàng',
-    path: '/feedback',
-    icon: <FeedbackOutlinedIcon />
   }
+  // {
+  //   label: 'Chăm sóc khách hàng',
+  //   icon: <PeopleAltOutlinedIcon />,
+  //   children: [
+  //     {
+  //       label: 'Nhắc Lịch Tiêm',
+  //       path: '/customer-care/reminder'
+  //     },
+  //     {
+  //       label: 'Tư Vấn Khách Hàng',
+  //       path: '/customer-care/chat'
+  //     }
+  //   ]
+  // }
+  // {
+  //   label: 'Feedback khách hàng',
+  //   path: '/feedback',
+  //   icon: <FeedbackOutlinedIcon />
+  // }
 ]
 
 function Sidebar() {

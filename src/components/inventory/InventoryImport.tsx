@@ -1,135 +1,133 @@
 'use client'
 
+import { useEffect, useState } from 'react'
+import { useRouter } from 'next/navigation'
+import { Controller, useFieldArray, useForm, useWatch } from 'react-hook-form'
+import { zodResolver } from '@hookform/resolvers/zod'
+import { z } from 'zod'
+import axios from 'axios'
+import { toast } from 'react-toastify'
+import { NumericFormat } from 'react-number-format'
+
+import { DatePicker } from '@mui/x-date-pickers/DatePicker'
+import dayjs from 'dayjs'
+import type { FieldPath } from 'react-hook-form'
+
 import {
+  Alert,
   Box,
   Button,
+  Divider,
+  IconButton,
   MenuItem,
   Paper,
+  Stack,
   TextField,
   Typography
 } from '@mui/material'
 
+import AddIcon from '@mui/icons-material/Add'
+import SaveIcon from '@mui/icons-material/Save'
+import DeleteIcon from '@mui/icons-material/Delete'
+import ArrowBackOutlinedIcon from '@mui/icons-material/ArrowBackOutlined'
 import Inventory2OutlinedIcon from '@mui/icons-material/Inventory2Outlined'
-import SaveOutlinedIcon from '@mui/icons-material/SaveOutlined'
-import CloseOutlinedIcon from '@mui/icons-material/CloseOutlined'
 
-import { useRouter } from 'next/navigation'
-
-import { Controller, useForm } from 'react-hook-form'
-
-import { zodResolver } from '@hookform/resolvers/zod'
-
-import { DatePicker } from '@mui/x-date-pickers'
-
-import dayjs from 'dayjs'
-
-import { z } from 'zod'
+import { insertInventoryAPI } from '@/services/inventory.type'
+import {
+  getAllVaccineAPI,
+  type Vaccine
+} from '@/services/vaccination-schedule.service'
 
 // ======================================================
 // VALIDATION
 // ======================================================
 
-const inventoryImportSchema = z
-  .object({
-    vaccineName: z
-      .string()
-      .trim()
-      .min(1, 'Vui lòng nhập tên vaccine')
-      .max(100, 'Tên vaccine không được vượt quá 100 ký tự'),
+const validDate = (value: string) => {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return false
 
-    vaccineType: z.string().trim().min(1, 'Vui lòng chọn loại vaccine'),
+  const date = new Date(`${value}T00:00:00Z`)
 
-    importDate: z.string().min(1, 'Vui lòng chọn ngày nhập'),
-
-    licenseNumber: z
-      .string()
-      .trim()
-      .min(1, 'Vui lòng nhập số giấy phép')
-      .max(50, 'Số giấy phép không được vượt quá 50 ký tự'),
-
-    country: z
-      .string()
-      .trim()
-      .min(1, 'Vui lòng nhập nước sản xuất')
-      .max(100, 'Nước sản xuất không được vượt quá 100 ký tự'),
-
-    price: z
-      .string()
-      .trim()
-      .min(1, 'Vui lòng nhập đơn giá')
-      .refine(
-        (value) => {
-          const number = Number(value)
-
-          return !Number.isNaN(number) && number > 0
-        },
-        {
-          message: 'Đơn giá phải lớn hơn 0'
-        }
-      ),
-
-    dosage: z
-      .string()
-      .trim()
-      .min(1, 'Vui lòng nhập hàm lượng')
-      .max(50, 'Hàm lượng không được vượt quá 50 ký tự'),
-
-    batchNumber: z
-      .string()
-      .trim()
-      .min(1, 'Vui lòng nhập số lô')
-      .max(50, 'Số lô không được vượt quá 50 ký tự'),
-
-    expiryDate: z.string().min(1, 'Vui lòng chọn hạn sử dụng'),
-
-    storageCondition: z
-      .string()
-      .trim()
-      .min(1, 'Vui lòng nhập điều kiện bảo quản')
-      .max(100, 'Điều kiện bảo quản không được vượt quá 100 ký tự'),
-
-    ageGroup: z
-      .string()
-      .trim()
-      .min(1, 'Vui lòng nhập độ tuổi tiêm chủng')
-      .max(100, 'Độ tuổi tiêm chủng không được vượt quá 100 ký tự')
-  })
-  .refine(
-    (data) => {
-      if (!data.importDate || !data.expiryDate) {
-        return true
-      }
-
-      return dayjs(data.expiryDate).isAfter(dayjs(data.importDate), 'day')
-    },
-    {
-      message: 'Hạn sử dụng phải sau ngày nhập',
-      path: ['expiryDate']
-    }
+  return (
+    !Number.isNaN(date.getTime()) && date.toISOString().slice(0, 10) === value
   )
+}
 
-type InventoryImportForm = z.infer<typeof inventoryImportSchema>
+const detailSchema = z.object({
+  vaccine_id: z
+    .number({ message: 'Vui lòng chọn vaccine' })
+    .int('Mã vaccine phải là số nguyên')
+    .positive('Vui lòng chọn vaccine'),
+
+  lot_code: z
+    .string()
+    .trim()
+    .nonempty('Vui lòng nhập mã lô')
+    .max(100, 'Mã lô không được vượt quá 100 ký tự'),
+
+  expiry_date: z
+    .string()
+    .nonempty('Vui lòng chọn ngày hết hạn')
+    .refine(validDate, 'Ngày hết hạn không hợp lệ'),
+
+  quantity: z
+    .number({ message: 'Vui lòng nhập số lượng' })
+    .int('Số lượng phải là số nguyên')
+    .positive('Số lượng phải lớn hơn 0'),
+
+  unit_price: z
+    .number({ message: 'Vui lòng nhập đơn giá' })
+    .finite('Đơn giá không hợp lệ')
+    .nonnegative('Đơn giá không được âm')
+})
+
+const inventorySchema = z.object({
+  import_date: z
+    .string()
+    .nonempty('Vui lòng chọn ngày nhập')
+    .refine(validDate, 'Ngày nhập không hợp lệ'),
+
+  note: z.string().trim().max(500, 'Ghi chú không được vượt quá 500 ký tự'),
+
+  details: z
+    .array(detailSchema)
+    .nonempty('Phiếu nhập phải có ít nhất một vaccine')
+})
+
+type InventoryFormData = z.infer<typeof inventorySchema>
 
 // ======================================================
-// VACCINE TYPES
+// FIELD STYLE
 // ======================================================
 
-const vaccineTypes = [
-  'BCG',
-  'Viêm gan B',
-  'Bạch hầu - Ho gà - Uốn ván',
-  'Bại liệt',
-  'Hib',
-  'Sởi',
-  'Sởi - Rubella',
-  'Viêm não Nhật Bản',
-  'Cúm',
-  'HPV',
-  'Phế cầu',
-  'Thủy đậu',
-  'Rotavirus',
-  'Khác'
-]
+const fieldSx = {
+  '& .MuiFormHelperText-root': {
+    minHeight: 20,
+    marginTop: '4px',
+    marginLeft: '4px',
+    lineHeight: '16px',
+    fontSize: 12
+  }
+}
+
+// ======================================================
+// INITIAL DATA
+// ======================================================
+
+const emptyDetail = (): InventoryFormData['details'][number] => ({
+  vaccine_id: 0,
+  lot_code: '',
+  expiry_date: '',
+  quantity: 1,
+  unit_price: 0
+})
+
+const localToday = () => {
+  const now = new Date()
+
+  return new Date(now.getTime() - now.getTimezoneOffset() * 60000)
+    .toISOString()
+    .slice(0, 10)
+}
 
 // ======================================================
 // COMPONENT
@@ -138,75 +136,95 @@ const vaccineTypes = [
 const InventoryImport = () => {
   const router = useRouter()
 
+  const [vaccines, setVaccines] = useState<Vaccine[]>([])
+
   const {
-    control,
     register,
+    control,
     handleSubmit,
-    watch,
+    reset,
+    setError,
     formState: { errors, isSubmitting }
-  } = useForm<InventoryImportForm>({
-    resolver: zodResolver(inventoryImportSchema),
-
+  } = useForm<InventoryFormData>({
+    resolver: zodResolver(inventorySchema),
     mode: 'onTouched',
-
     defaultValues: {
-      vaccineName: '',
-      vaccineType: '',
-      importDate: dayjs().format('YYYY-MM-DD'),
-      licenseNumber: '',
-      country: '',
-      price: '',
-      dosage: '',
-      batchNumber: '',
-      expiryDate: '',
-      storageCondition: '',
-      ageGroup: ''
+      import_date: localToday(),
+      note: '',
+      details: [emptyDetail()]
     }
   })
 
-  const importDate = watch('importDate')
-
   // ====================================================
-  // SUBMIT
+  // FETCH VACCINES
   // ====================================================
 
-  const onSubmit = async (data: InventoryImportForm) => {
-    const payload = {
-      ...data,
-
-      price: Number(data.price)
+  useEffect(() => {
+    const fetchData = async () => {
+      try {
+        const vaccinesData = await getAllVaccineAPI()
+        setVaccines(vaccinesData)
+      } catch (error) {
+        console.error('Lỗi lấy danh sách vaccine:', error)
+        toast.error('Không thể tải danh sách vaccine')
+      }
     }
 
-    console.log('IMPORT VACCINE:', payload)
+    fetchData()
+  }, [])
 
-    // ==================================================
-    // TODO: CALL API
-    // ==================================================
-    //
-    // Sau này:
-    //
-    // await inventoryService.importVaccine(payload)
+  // ====================================================
+  // FIELD ARRAY
+  // ====================================================
 
+  const { fields, append, remove } = useFieldArray({
+    control,
+    name: 'details'
+  })
+
+  const details =
+    useWatch({
+      control,
+      name: 'details'
+    }) ?? []
+
+  const totalAmount = details.reduce(
+    (total, detail) =>
+      total + (Number(detail.quantity) || 0) * (Number(detail.unit_price) || 0),
+    0
+  )
+
+  // ====================================================
+  // HANDLERS
+  // ====================================================
+
+  const handleBack = () => {
     router.push('/inventory')
   }
 
-  // ====================================================
-  // CANCEL
-  // ====================================================
+  const handleCreate = async (data: InventoryFormData) => {
+    try {
+      await insertInventoryAPI(data)
 
-  const handleCancel = () => {
-    router.push('/inventory')
-  }
+      toast.success('Nhập vaccine thành công')
 
-  // ====================================================
-  // COMMON TEXTFIELD STYLE
-  // ====================================================
+      reset()
+      router.push('/inventory')
+    } catch (error) {
+      if (axios.isAxiosError(error)) {
+        const { field, message } = error.response?.data || {}
 
-  const fieldSx = {
-    width: '100%',
+        if (field && typeof message === 'string') {
+          setError(field as FieldPath<InventoryFormData>, {
+            type: 'server',
+            message
+          })
 
-    '& .MuiInputBase-root': {
-      bgcolor: '#fff'
+          return
+        }
+      }
+
+      toast.error('Nhập vaccine thất bại')
     }
   }
 
@@ -219,89 +237,64 @@ const InventoryImport = () => {
       component="main"
       sx={(theme) => ({
         ml: theme.layout.sidebarWidth,
-
         pt: theme.layout.headerHeight,
-
         minHeight: `calc(100vh - ${theme.layout.footerHeight})`,
-
         bgcolor: '#f5f7fb',
-
-        boxSizing: 'border-box'
+        boxSizing: 'border-box',
+        display: 'flex',
+        flexDirection: 'column'
       })}
     >
-      {/* ================================================= */}
-      {/* PAGE CONTENT */}
-      {/* ================================================= */}
-
       <Box
         sx={{
           width: '100%',
-
           px: 3,
-
-          py: 3,
-
-          boxSizing: 'border-box'
+          py: 1.5,
+          boxSizing: 'border-box',
+          flex: 1,
+          display: 'flex',
+          flexDirection: 'column'
         }}
       >
-        {/* ================================================= */}
-        {/* CARD */}
-        {/* ================================================= */}
+        {/* MAIN PAPER */}
 
         <Paper
           variant="outlined"
           sx={{
             width: '100%',
-
-            borderRadius: 2.5,
-
-            boxShadow: 'none',
-
+            flex: 1,
             bgcolor: '#fff',
-
-            overflow: 'hidden'
+            borderRadius: 2.5,
+            boxShadow: 'none',
+            overflow: 'hidden',
+            display: 'flex',
+            flexDirection: 'column'
           }}
         >
-          {/* ============================================= */}
           {/* HEADER */}
-          {/* ============================================= */}
 
           <Box
             sx={{
               px: 3,
-
-              py: 2.25,
-
+              py: 2,
               display: 'flex',
-
               alignItems: 'center',
-
               gap: 1.5,
-
               borderBottom: '1px solid',
-
               borderColor: 'divider'
             }}
           >
             <Box
               sx={{
                 width: 44,
-
                 height: 44,
-
                 display: 'flex',
-
                 alignItems: 'center',
-
                 justifyContent: 'center',
-
-                flexShrink: 0,
-
                 borderRadius: 2,
-
                 bgcolor: 'primary.main',
-
-                color: '#fff'
+                color: '#fff',
+                flexShrink: 0
               }}
             >
               <Inventory2OutlinedIcon />
@@ -312,7 +305,6 @@ const InventoryImport = () => {
                 variant="h5"
                 sx={{
                   fontWeight: 700,
-
                   lineHeight: 1.25
                 }}
               >
@@ -321,167 +313,74 @@ const InventoryImport = () => {
 
               <Typography
                 variant="body2"
-                color="text.secondary"
                 sx={{
+                  color: 'text.secondary',
                   mt: 0.25
                 }}
               >
-                Thêm thông tin vaccine mới vào kho
+                Tạo phiếu nhập và cập nhật số lượng vaccine trong kho
               </Typography>
             </Box>
           </Box>
 
-          {/* ============================================= */}
           {/* FORM */}
-          {/* ============================================= */}
 
-          <Box component="form" onSubmit={handleSubmit(onSubmit)} noValidate>
-            <Box
-              sx={{
-                px: 3,
+          <Box
+            component="form"
+            noValidate
+            onSubmit={handleSubmit(handleCreate)}
+            sx={{
+              flex: 1,
+              display: 'flex',
+              flexDirection: 'column'
+            }}
+          >
+            {/* THÔNG TIN PHIẾU NHẬP */}
 
-                py: 3
-              }}
-            >
-              {/* ========================================= */}
-              {/* 2 COLUMNS */}
-              {/* ========================================= */}
+            <Box sx={{ px: 3, py: 2 }}>
+              <Typography
+                sx={{
+                  fontSize: 16,
+                  fontWeight: 600,
+                  mb: 2
+                }}
+              >
+                Thông tin phiếu nhập
+              </Typography>
 
               <Box
                 sx={{
                   display: 'grid',
-
                   gridTemplateColumns: {
                     xs: '1fr',
-
-                    md: 'repeat(2, minmax(0, 1fr))'
+                    md: '1fr 2fr'
                   },
-
-                  columnGap: 4,
-
-                  rowGap: 2.5
+                  gap: 2,
+                  alignItems: 'start'
                 }}
               >
-                {/* ======================================= */}
-                {/* VACCINE NAME */}
-                {/* ======================================= */}
-
-                <TextField
-                  label="Tên vaccine"
-                  placeholder="Nhập tên vaccine"
-                  fullWidth
-                  required
-                  {...register('vaccineName')}
-                  error={Boolean(errors.vaccineName)}
-                  helperText={errors.vaccineName?.message}
-                  slotProps={{
-                    htmlInput: {
-                      maxLength: 100
-                    }
-                  }}
-                  sx={fieldSx}
-                />
-
-                {/* ======================================= */}
-                {/* DOSAGE */}
-                {/* ======================================= */}
-
-                <TextField
-                  label="Hàm lượng"
-                  placeholder="VD: 0.5 ml"
-                  fullWidth
-                  required
-                  {...register('dosage')}
-                  error={Boolean(errors.dosage)}
-                  helperText={errors.dosage?.message}
-                  slotProps={{
-                    htmlInput: {
-                      maxLength: 50
-                    }
-                  }}
-                  sx={fieldSx}
-                />
-
-                {/* ======================================= */}
-                {/* VACCINE TYPE */}
-                {/* ======================================= */}
-
-                <Controller
-                  name="vaccineType"
-                  control={control}
-                  render={({ field }) => (
-                    <TextField
-                      {...field}
-                      select
-                      label="Loại vaccine"
-                      fullWidth
-                      required
-                      error={Boolean(errors.vaccineType)}
-                      helperText={errors.vaccineType?.message}
-                      sx={fieldSx}
-                    >
-                      <MenuItem value="">
-                        <em>Chọn loại vaccine</em>
-                      </MenuItem>
-
-                      {vaccineTypes.map((type) => (
-                        <MenuItem key={type} value={type}>
-                          {type}
-                        </MenuItem>
-                      ))}
-                    </TextField>
-                  )}
-                />
-
-                {/* ======================================= */}
-                {/* BATCH NUMBER */}
-                {/* ======================================= */}
-
-                <TextField
-                  label="Số lô"
-                  placeholder="Nhập số lô"
-                  fullWidth
-                  required
-                  {...register('batchNumber')}
-                  error={Boolean(errors.batchNumber)}
-                  helperText={errors.batchNumber?.message}
-                  slotProps={{
-                    htmlInput: {
-                      maxLength: 50
-                    }
-                  }}
-                  sx={fieldSx}
-                />
-
-                {/* ======================================= */}
                 {/* IMPORT DATE */}
-                {/* DD/MM/YYYY */}
-                {/* ======================================= */}
 
                 <Controller
-                  name="importDate"
+                  name="import_date"
                   control={control}
                   render={({ field }) => (
                     <DatePicker
                       label="Ngày nhập"
                       format="DD/MM/YYYY"
-                      maxDate={dayjs()}
+                      disabled={isSubmitting}
                       value={field.value ? dayjs(field.value) : null}
-                      onChange={(value) => {
-                        field.onChange(value ? value.format('YYYY-MM-DD') : '')
+                      onChange={(date) => {
+                        field.onChange(
+                          date?.isValid() ? date.format('YYYY-MM-DD') : ''
+                        )
                       }}
                       slotProps={{
                         textField: {
-                          fullWidth: true,
-
                           required: true,
-
-                          onBlur: field.onBlur,
-
-                          error: Boolean(errors.importDate),
-
-                          helperText: errors.importDate?.message,
-
+                          fullWidth: true,
+                          error: Boolean(errors.import_date),
+                          helperText: errors.import_date?.message || ' ',
                           sx: fieldSx
                         }
                       }}
@@ -489,214 +388,419 @@ const InventoryImport = () => {
                   )}
                 />
 
-                {/* ======================================= */}
-                {/* EXPIRY DATE */}
-                {/* DD/MM/YYYY */}
-                {/* ======================================= */}
-
-                <Controller
-                  name="expiryDate"
-                  control={control}
-                  render={({ field }) => (
-                    <DatePicker
-                      label="Hạn sử dụng"
-                      format="DD/MM/YYYY"
-                      minDate={
-                        importDate
-                          ? dayjs(importDate).add(1, 'day')
-                          : dayjs().add(1, 'day')
-                      }
-                      value={field.value ? dayjs(field.value) : null}
-                      onChange={(value) => {
-                        field.onChange(value ? value.format('YYYY-MM-DD') : '')
-                      }}
-                      slotProps={{
-                        textField: {
-                          fullWidth: true,
-
-                          required: true,
-
-                          onBlur: field.onBlur,
-
-                          error: Boolean(errors.expiryDate),
-
-                          helperText: errors.expiryDate?.message,
-
-                          sx: fieldSx
-                        }
-                      }}
-                    />
-                  )}
-                />
-
-                {/* ======================================= */}
-                {/* LICENSE */}
-                {/* ======================================= */}
+                {/* NOTE */}
 
                 <TextField
-                  label="Số giấy phép"
-                  placeholder="Nhập số giấy phép"
+                  label="Ghi chú"
                   fullWidth
-                  required
-                  {...register('licenseNumber')}
-                  error={Boolean(errors.licenseNumber)}
-                  helperText={errors.licenseNumber?.message}
+                  placeholder="Nhập ghi chú cho phiếu nhập (nếu có)"
+                  disabled={isSubmitting}
+                  {...register('note')}
+                  error={Boolean(errors.note)}
+                  helperText={errors.note?.message || ' '}
+                  sx={fieldSx}
                   slotProps={{
                     htmlInput: {
-                      maxLength: 50
+                      maxLength: 500
                     }
                   }}
-                  sx={fieldSx}
-                />
-
-                {/* ======================================= */}
-                {/* STORAGE */}
-                {/* ======================================= */}
-
-                <TextField
-                  label="Điều kiện bảo quản"
-                  placeholder="VD: 2°C - 8°C"
-                  fullWidth
-                  required
-                  {...register('storageCondition')}
-                  error={Boolean(errors.storageCondition)}
-                  helperText={errors.storageCondition?.message}
-                  slotProps={{
-                    htmlInput: {
-                      maxLength: 100
-                    }
-                  }}
-                  sx={fieldSx}
-                />
-
-                {/* ======================================= */}
-                {/* COUNTRY */}
-                {/* ======================================= */}
-
-                <TextField
-                  label="Nước sản xuất"
-                  placeholder="Nhập nước sản xuất"
-                  fullWidth
-                  required
-                  {...register('country')}
-                  error={Boolean(errors.country)}
-                  helperText={errors.country?.message}
-                  slotProps={{
-                    htmlInput: {
-                      maxLength: 100
-                    }
-                  }}
-                  sx={fieldSx}
-                />
-
-                {/* ======================================= */}
-                {/* AGE GROUP */}
-                {/* ======================================= */}
-
-                <TextField
-                  label="Độ tuổi tiêm chủng"
-                  placeholder="VD: Trẻ em, Người lớn"
-                  fullWidth
-                  required
-                  {...register('ageGroup')}
-                  error={Boolean(errors.ageGroup)}
-                  helperText={errors.ageGroup?.message}
-                  slotProps={{
-                    htmlInput: {
-                      maxLength: 100
-                    }
-                  }}
-                  sx={fieldSx}
-                />
-
-                {/* ======================================= */}
-                {/* PRICE */}
-                {/* ======================================= */}
-
-                <TextField
-                  label="Đơn giá"
-                  placeholder="Nhập đơn giá"
-                  type="number"
-                  fullWidth
-                  required
-                  {...register('price')}
-                  error={Boolean(errors.price)}
-                  helperText={errors.price?.message}
-                  slotProps={{
-                    htmlInput: {
-                      min: 1,
-
-                      max: 100000000,
-
-                      step: 1000
-                    },
-
-                    input: {
-                      endAdornment: (
-                        <Typography
-                          variant="body2"
-                          color="text.secondary"
-                          sx={{
-                            ml: 1
-                          }}
-                        >
-                          VNĐ
-                        </Typography>
-                      )
-                    }
-                  }}
-                  sx={fieldSx}
                 />
               </Box>
             </Box>
 
-            {/* ============================================= */}
-            {/* ACTION */}
-            {/* ============================================= */}
+            <Divider />
+
+            {/* DANH SÁCH VACCINE */}
 
             <Box
               sx={{
                 px: 3,
                 py: 2,
+                flex: 1,
+                display: 'flex',
+                flexDirection: 'column'
+              }}
+            >
+              <Typography
+                sx={{
+                  fontSize: 16,
+                  fontWeight: 600,
+                  mb: 2
+                }}
+              >
+                Danh sách vaccine
+              </Typography>
+
+              {errors.details?.root?.message && (
+                <Alert severity="error" sx={{ mb: 2 }}>
+                  {errors.details.root.message}
+                </Alert>
+              )}
+
+              {/* VACCINE ITEMS */}
+
+              <Stack sx={{ gap: 2 }}>
+                {fields.map((item, index) => (
+                  <Paper
+                    key={item.id}
+                    variant="outlined"
+                    sx={{
+                      px: 2.5,
+                      py: 1.5,
+                      borderRadius: 2,
+                      bgcolor: '#fafafa'
+                    }}
+                  >
+                    {/* ITEM HEADER */}
+
+                    <Stack
+                      sx={{
+                        flexDirection: 'row',
+                        justifyContent: 'space-between',
+                        alignItems: 'center',
+                        mb: 1.5
+                      }}
+                    >
+                      <Typography
+                        sx={{
+                          fontWeight: 600,
+                          fontSize: 14
+                        }}
+                      >
+                        Vaccine #{index + 1}
+                      </Typography>
+
+                      <IconButton
+                        type="button"
+                        color="error"
+                        disabled={fields.length === 1 || isSubmitting}
+                        onClick={() => remove(index)}
+                      >
+                        <DeleteIcon />
+                      </IconButton>
+                    </Stack>
+
+                    {/* ITEM FIELDS */}
+
+                    <Box
+                      sx={{
+                        display: 'grid',
+                        gridTemplateColumns: {
+                          xs: '1fr',
+                          sm: 'repeat(2, minmax(0, 1fr))',
+                          md: 'repeat(3, minmax(0, 1fr))'
+                        },
+                        columnGap: 2,
+                        rowGap: 1
+                      }}
+                    >
+                      {/* VACCINE SELECT */}
+
+                      <Controller
+                        name={`details.${index}.vaccine_id`}
+                        control={control}
+                        render={({ field }) => (
+                          <TextField
+                            select
+                            label="Loại vaccine"
+                            required
+                            fullWidth
+                            disabled={isSubmitting}
+                            name={field.name}
+                            value={field.value}
+                            onBlur={field.onBlur}
+                            inputRef={field.ref}
+                            onChange={(event) =>
+                              field.onChange(Number(event.target.value))
+                            }
+                            error={Boolean(errors.details?.[index]?.vaccine_id)}
+                            helperText={
+                              errors.details?.[index]?.vaccine_id?.message ||
+                              ' '
+                            }
+                            sx={fieldSx}
+                          >
+                            <MenuItem value={0}>
+                              <em>Chọn vaccine</em>
+                            </MenuItem>
+
+                            {vaccines.map((vaccine) => (
+                              <MenuItem
+                                key={vaccine.vaccine_id}
+                                value={vaccine.vaccine_id}
+                              >
+                                {vaccine.vaccine_name}
+                              </MenuItem>
+                            ))}
+                          </TextField>
+                        )}
+                      />
+
+                      {/* LOT CODE */}
+
+                      <TextField
+                        label="Mã lô"
+                        required
+                        fullWidth
+                        disabled={isSubmitting}
+                        {...register(`details.${index}.lot_code`)}
+                        error={Boolean(errors.details?.[index]?.lot_code)}
+                        helperText={
+                          errors.details?.[index]?.lot_code?.message || ' '
+                        }
+                        sx={fieldSx}
+                        slotProps={{
+                          htmlInput: {
+                            maxLength: 100
+                          }
+                        }}
+                      />
+
+                      {/* EXPIRY DATE */}
+
+                      <Controller
+                        name={`details.${index}.expiry_date`}
+                        control={control}
+                        render={({ field }) => (
+                          <DatePicker
+                            label="Ngày hết hạn"
+                            format="DD/MM/YYYY"
+                            value={field.value ? dayjs(field.value) : null}
+                            onChange={(date) => {
+                              field.onChange(
+                                date?.isValid() ? date.format('YYYY-MM-DD') : ''
+                              )
+                            }}
+                            disabled={isSubmitting}
+                            slotProps={{
+                              textField: {
+                                required: true,
+                                fullWidth: true,
+                                error: Boolean(
+                                  errors.details?.[index]?.expiry_date
+                                ),
+                                helperText:
+                                  errors.details?.[index]?.expiry_date
+                                    ?.message || ' ',
+                                sx: fieldSx
+                              }
+                            }}
+                          />
+                        )}
+                      />
+
+                      {/* QUANTITY */}
+
+                      <TextField
+                        label="Số lượng"
+                        type="number"
+                        required
+                        fullWidth
+                        disabled={isSubmitting}
+                        {...register(`details.${index}.quantity`, {
+                          valueAsNumber: true
+                        })}
+                        error={Boolean(errors.details?.[index]?.quantity)}
+                        helperText={
+                          errors.details?.[index]?.quantity?.message || ' '
+                        }
+                        sx={fieldSx}
+                        slotProps={{
+                          htmlInput: {
+                            min: 1,
+                            step: 1
+                          }
+                        }}
+                      />
+
+                      {/* UNIT PRICE */}
+
+                      <Controller
+                        name={`details.${index}.unit_price`}
+                        control={control}
+                        render={({ field }) => (
+                          <NumericFormat
+                            customInput={TextField}
+                            label="Đơn giá"
+                            required
+                            fullWidth
+                            placeholder="VD: 400.000"
+                            value={field.value}
+                            thousandSeparator="."
+                            decimalSeparator=","
+                            decimalScale={0}
+                            allowNegative={false}
+                            allowLeadingZeros={false}
+                            suffix=" VNĐ"
+                            disabled={isSubmitting}
+                            onBlur={field.onBlur}
+                            getInputRef={field.ref}
+                            onValueChange={(values) => {
+                              field.onChange(values.floatValue ?? NaN)
+                            }}
+                            isAllowed={(values) => {
+                              const value = values.floatValue
+
+                              return value === undefined || value <= 999999999
+                            }}
+                            error={Boolean(errors.details?.[index]?.unit_price)}
+                            helperText={
+                              errors.details?.[index]?.unit_price?.message ||
+                              ' '
+                            }
+                            sx={fieldSx}
+                          />
+                        )}
+                      />
+
+                      {/* TOTAL PRICE */}
+
+                      <TextField
+                        label="Thành tiền"
+                        value={
+                          (
+                            (Number(details[index]?.quantity) || 0) *
+                            (Number(details[index]?.unit_price) || 0)
+                          ).toLocaleString('vi-VN') + ' đ'
+                        }
+                        fullWidth
+                        helperText=" "
+                        slotProps={{
+                          input: {
+                            readOnly: true
+                          }
+                        }}
+                        sx={{
+                          ...fieldSx,
+                          '& .MuiOutlinedInput-root': {
+                            bgcolor: '#f1f5f9'
+                          },
+                          '& .MuiInputBase-input': {
+                            fontWeight: 600
+                          }
+                        }}
+                      />
+                    </Box>
+                  </Paper>
+                ))}
+              </Stack>
+
+              {/* ADD VACCINE BUTTON */}
+
+              <Box
+                sx={{
+                  display: 'flex',
+                  justifyContent: 'flex-end',
+                  mt: 1.5
+                }}
+              >
+                <Button
+                  type="button"
+                  variant="outlined"
+                  startIcon={<AddIcon />}
+                  onClick={() =>
+                    append(emptyDetail(), {
+                      shouldFocus: false
+                    })
+                  }
+                  disabled={isSubmitting}
+                  sx={{
+                    textTransform: 'none',
+                    height: 40
+                  }}
+                >
+                  Thêm vaccine
+                </Button>
+              </Box>
+            </Box>
+
+            {/* TOTAL + ACTION */}
+
+            <Box
+              sx={{
+                px: 3,
+                py: 2,
+                mt: 'auto',
                 borderTop: '1px solid',
                 borderColor: 'divider',
                 display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'flex-end',
-                gap: 1.5
+                flexDirection: {
+                  xs: 'column',
+                  sm: 'row'
+                },
+                justifyContent: 'space-between',
+                alignItems: {
+                  xs: 'stretch',
+                  sm: 'center'
+                },
+                gap: 2
               }}
             >
-              <Button
-                type="button"
-                variant="outlined"
-                color="inherit"
-                startIcon={<CloseOutlinedIcon />}
-                onClick={handleCancel}
-                disabled={isSubmitting}
-                sx={{
-                  minWidth: 100,
-                  height: 42,
-                  textTransform: 'none',
-                  fontWeight: 600
-                }}
-              >
-                Hủy
-              </Button>
+              {/* TOTAL AMOUNT */}
 
-              <Button
-                type="submit"
-                variant="contained"
-                startIcon={<SaveOutlinedIcon />}
-                disabled={isSubmitting}
+              <Box>
+                <Typography
+                  sx={{
+                    fontSize: 13,
+                    color: 'text.secondary'
+                  }}
+                >
+                  Tổng tiền phiếu nhập
+                </Typography>
+
+                <Typography
+                  sx={{
+                    fontSize: 24,
+                    fontWeight: 700,
+                    color: 'primary.main'
+                  }}
+                >
+                  {totalAmount.toLocaleString('vi-VN')} đ
+                </Typography>
+              </Box>
+
+              {/* ACTION BUTTONS */}
+
+              <Stack
                 sx={{
-                  minWidth: 110,
-                  height: 42,
-                  textTransform: 'none',
-                  fontWeight: 600
+                  flexDirection: 'row',
+                  gap: 1.5,
+                  justifyContent: {
+                    xs: 'flex-end',
+                    sm: 'flex-start'
+                  }
                 }}
               >
-                {isSubmitting ? 'Đang nhập...' : 'Nhập'}
-              </Button>
+                <Button
+                  type="button"
+                  variant="outlined"
+                  startIcon={<ArrowBackOutlinedIcon />}
+                  onClick={handleBack}
+                  disabled={isSubmitting}
+                  sx={{
+                    minWidth: 110,
+                    height: 42,
+                    textTransform: 'none'
+                  }}
+                >
+                  Hủy
+                </Button>
+
+                <Button
+                  type="submit"
+                  variant="contained"
+                  startIcon={<SaveIcon />}
+                  disabled={isSubmitting}
+                  sx={{
+                    minWidth: 150,
+                    height: 42,
+                    textTransform: 'none',
+                    fontWeight: 600
+                  }}
+                >
+                  {isSubmitting ? 'Đang lưu...' : 'Lưu phiếu nhập'}
+                </Button>
+              </Stack>
             </Box>
           </Box>
         </Paper>
